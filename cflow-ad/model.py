@@ -8,6 +8,7 @@ import FrEIA.modules as Fm
 import timm
 import os
 from torchvision import transforms
+from custom_models.u2net import u2net_test
 
 def positionalencoding2d(D, H, W):
     """
@@ -31,7 +32,7 @@ def positionalencoding2d(D, H, W):
     return P
 # ================== SALIENCY DETECTOR =========================
 def load_saliency_detector_arch(c):
-    u2net_dir = os.path.join(os.getcwd(), 'u2net')
+    u2net_dir = os.path.join(os.getcwd(),'custom_models' ,'u2net')
     return u2net_test.load_u2net_eval(u2net_dir)
 def get_saliency_map(detector, input_img):
     with torch.no_grad:
@@ -57,7 +58,7 @@ def freia_cflow_head(c, n_feat):
     print('CNF coder:', n_feat)
     for k in range(c.coupling_blocks):
         coder.append(Fm.AllInOneBlock, cond=0, cond_shape=(n_cond,), subnet_constructor=subnet_fc, affine_clamping=c.clamp_alpha,
-            global_affine_type='SOFTPLUS', permute_soft=True)
+            global_affine_type='SOFTPLUS', permute_soft=False)
     return coder
 
 
