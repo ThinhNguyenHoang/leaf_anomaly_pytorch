@@ -35,9 +35,8 @@ def load_saliency_detector_arch(c):
     u2net_dir = os.path.join(os.getcwd(),'custom_models' ,'u2net')
     return u2net_test.load_u2net_eval(u2net_dir)
 def get_saliency_map(detector, input_img):
-    with torch.no_grad:
-        pred = u2net_test.eval_with_u2net(detector, input_img)
-        return pred
+    pred = u2net_test.eval_with_u2net(detector, input_img)
+    return pred
 # ================== DECODER ======================
 def subnet_fc(dims_in, dims_out):
     return nn.Sequential(nn.Linear(dims_in, 2*dims_in), nn.ReLU(), nn.Linear(2*dims_in, dims_out))

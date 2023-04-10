@@ -53,10 +53,11 @@ def train_meta_epoch(c, epoch, loader,saliency_detector, encoder, decoders, opti
                 S = H*W
                 E = B*S
                 # SALIENCY MAP
-                saliency_resized = transforms.Resize([B, 1, H, W])(saliency_map)
+                saliency_resized = transforms.Resize([H, W])(saliency_map).unsqueeze(1)
                 # POSITIONAL ENCODING
                 positional_encoding = positionalencoding2d(P, H, W).to(c.device).unsqueeze(0).repeat(B, 1, 1, 1) # BxPxHxW
-                condition_vector = torch.mul(saliency_resized, positional_encoding)
+                # condition_vector = torch.mul(saliency_resized, positional_encoding)
+                condition_vector = positional_encoding
                 # BxPxHxW -----> BxPx(HW)---------> Bx(HW)xP ----> BHWxP
                 condition_vector_reshaped = condition_vector.reshape(B, P, S).transpose(1, 2).reshape(E, P)  # BHWxP
                 # BxCxHxW -----> BxCx(HW)---------> Bx(HW)xC ----> BHWxC
@@ -298,7 +299,7 @@ def train(c):
             load_weights(encoder, decoders, c.checkpoint)
         elif c.action_type == 'norm-train':
             print('Train meta epoch: {}'.format(epoch))
-            train_meta_epoch(c, epoch,saliency_detector, train_loader, encoder, decoders, optimizer, pool_layers, N)
+            train_meta_epoch(c, epoch,train_loader, saliency_detector,  encoder, decoders, optimizer, pool_layers, N)
         else:
             raise NotImplementedError('{} is not supported action type!'.format(c.action_type))
         
