@@ -4,6 +4,7 @@ __pycache__
 *.gif
 *.JPG
 *.jpeg
+*.svg
 *.pt
 *.xml
 *.pth

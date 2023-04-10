@@ -53,7 +53,7 @@ def train_meta_epoch(c, epoch, loader,saliency_detector, encoder, decoders, opti
                 S = H*W
                 E = B*S
                 # SALIENCY MAP
-                saliency_resized = transforms.Resize([B, 1, H, W])
+                saliency_resized = transforms.Resize([B, 1, H, W])(saliency_map)
                 # POSITIONAL ENCODING
                 positional_encoding = positionalencoding2d(P, H, W).to(c.device).unsqueeze(0).repeat(B, 1, 1, 1) # BxPxHxW
                 condition_vector = torch.mul(saliency_resized, positional_encoding)

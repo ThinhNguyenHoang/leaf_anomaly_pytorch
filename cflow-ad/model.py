@@ -8,7 +8,6 @@ import FrEIA.modules as Fm
 import timm
 import os
 from torchvision import transforms
-from ..u2net import u2net_test
 
 def positionalencoding2d(D, H, W):
     """
