@@ -5,7 +5,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python: train.py",
+            "name": "Python: train_ok??",
             "type": "python",
             "request": "launch",
             "program": "main.py",
@@ -24,6 +24,8 @@
                 "--class-name",
                 "cable",
                 "--meta-epochs",
+                "1"
+                "--sub-epochs",
                 "1"
             ],
             "console": "integratedTerminal",
@@ -53,7 +55,7 @@
                 "--class-name",
                 "cable",
                 "--meta-epochs",
-                "10",
+                "1",
                 "--viz"
             ],
             "console": "integratedTerminal",

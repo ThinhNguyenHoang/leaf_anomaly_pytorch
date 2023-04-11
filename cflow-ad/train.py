@@ -2,7 +2,7 @@ import os, time
 import numpy as np
 import torch
 import torch.nn.functional as F
-from sklearn.metrics import roc_auc_score, precision_recall_curve
+from sklearn.metrics import roc_auc_score
 from tqdm import tqdm
 from visualize import *
 from model import load_decoder_arch, load_encoder_arch, positionalencoding2d, activation, load_saliency_detector_arch, get_saliency_map
@@ -121,8 +121,6 @@ def test_meta_epoch(c, epoch,loader, encoder, decoders, pool_layers, N, saliency
             _ = encoder(image)  # BxCxHxW
             if c.use_saliency:
                 saliency_map = get_saliency_map(saliency_detector, image)
-            # test decoder
-            e_list = list()
             for l, layer in enumerate(pool_layers):
                 e = activation[layer]  # BxCxHxW
                 #
@@ -179,84 +177,6 @@ def test_meta_epoch(c, epoch,loader, encoder, decoders, pool_layers, N, saliency
     return height, width, image_list, test_dist, gt_label_list, gt_mask_list
 
 
-def test_meta_fps(c, epoch, loader, encoder, decoders, pool_layers, N):
-    # test
-    if c.verbose:
-        print('\nCompute loss and scores on test set:')
-    #
-    P = c.condition_vec
-    decoders = [decoder.eval() for decoder in decoders]
-    height = list()
-    width = list()
-    image_list = list()
-    gt_label_list = list()
-    gt_mask_list = list()
-    test_dist = [list() for layer in pool_layers]
-    test_loss = 0.0
-    test_count = 0
-    A = len(loader.dataset)
-    with torch.no_grad():
-        # warm-up
-        for i, (image, _, _) in enumerate(tqdm(loader, disable=c.hide_tqdm_bar)):
-            # data
-            image = image.to(c.device) # single scale
-            _ = encoder(image)  # BxCxHxW
-        # measure encoder only
-        torch.cuda.synchronize()
-        start = time.time()
-        for i, (image, _, _) in enumerate(tqdm(loader, disable=c.hide_tqdm_bar)):
-            # data
-            image = image.to(c.device) # single scale
-            _ = encoder(image)  # BxCxHxW
-        # measure encoder + decoder
-        torch.cuda.synchronize()
-        time_enc = time.time() - start
-        start = time.time()
-        for i, (image, _, _) in enumerate(tqdm(loader, disable=c.hide_tqdm_bar)):
-            # data
-            image = image.to(c.device) # single scale
-            _ = encoder(image)  # BxCxHxW
-            # test decoder
-            e_list = list()
-            for l, layer in enumerate(pool_layers):
-                e = activation[layer]  # BxCxHxW
-                #
-                B, C, H, W = e.size()
-                S = H*W
-                E = B*S
-                #
-                if i == 0:  # get stats
-                    height.append(H)
-                    width.append(W)
-                #
-                p = positionalencoding2d(P, H, W).to(c.device).unsqueeze(0).repeat(B, 1, 1, 1)
-                condition_vector_reshaped = p.reshape(B, P, S).transpose(1, 2).reshape(E, P)  # BHWxP
-                feature_map_reshaped = e.reshape(B, C, S).transpose(1, 2).reshape(E, C)  # BHWxC
-                #
-                decoder = decoders[l]
-                FIB = E//N + int(E%N > 0)  # number of fiber batches
-                for f in range(FIB):
-                    if f < (FIB-1):
-                        idx = torch.arange(f*N, (f+1)*N)
-                    else:
-                        idx = torch.arange(f*N, E)
-                    #
-                    condition_patch = condition_vector_reshaped[idx]  # NxP
-                    feature_patch = feature_map_reshaped[idx]  # NxC
-                    #
-                    if 'cflow' in c.dec_arch:
-                        z, log_jac_det = decoder(feature_patch, [condition_patch,])
-                    else:
-                        z, log_jac_det = decoder(feature_patch)
-    #
-    torch.cuda.synchronize()
-    time_all = time.time() - start
-    fps_enc = A / time_enc
-    fps_all = A / time_all
-    print('Encoder/All {:.2f}/{:.2f} fps'.format(fps_enc, fps_all))
-    #
-    return height, width, image_list, test_dist, gt_label_list, gt_mask_list
-
 
 def train(c):
     run_date = datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S")
@@ -293,9 +213,6 @@ def train(c):
             train_meta_epoch(c, epoch,train_loader, saliency_detector,  encoder, decoders, optimizer, pool_layers, N)
         else:
             raise NotImplementedError('{} is not supported action type!'.format(c.action_type))
-        #height, width, test_image_list, test_dist, gt_label_list, gt_mask_list = test_meta_fps(
-        #    c, epoch, test_loader, encoder, decoders, pool_layers, N)
-
         height, width, test_image_list, test_dist, gt_label_list, gt_mask_list = test_meta_epoch(
             c, epoch, test_loader, encoder, decoders, pool_layers, N, saliency_detector=saliency_detector)
 
