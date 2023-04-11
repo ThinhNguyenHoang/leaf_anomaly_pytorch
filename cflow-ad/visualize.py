@@ -6,7 +6,7 @@ from skimage.segmentation import mark_boundaries
 import matplotlib.pyplot as plt
 import matplotlib
 from utils import *
-
+from sklearn.metrics import precision_recall_curve
 OUT_DIR = './viz/'
 
 norm = matplotlib.colors.Normalize(vmin=0.0, vmax=255.0)
@@ -145,3 +145,21 @@ def export_test_images(c, test_img, gts, scores, threshold):
             image_file = os.path.join(image_dirs, '{:08d}'.format(i))
             fig_img.savefig(image_file, dpi=dpi, format='svg', bbox_inches = 'tight', pad_inches = 0.0)
             plt.close()
+
+def save_visualization(c, test_image_list, super_mask, gt_mask, gt_label, score_label):
+    precision, recall, thresholds = precision_recall_curve(gt_label, score_label)
+    a = 2 * precision * recall
+    b = precision + recall
+    f1 = np.divide(a, b, out=np.zeros_like(a), where=b != 0)
+    det_threshold = thresholds[np.argmax(f1)]
+    print('Optimal DET Threshold: {:.2f}'.format(det_threshold))
+    precision, recall, thresholds = precision_recall_curve(gt_mask.flatten(), super_mask.flatten())
+    a = 2 * precision * recall
+    b = precision + recall
+    f1 = np.divide(a, b, out=np.zeros_like(a), where=b != 0)
+    seg_threshold = thresholds[np.argmax(f1)]
+    print('Optimal SEG Threshold: {:.2f}'.format(seg_threshold))
+    export_groundtruth(c, test_image_list, gt_mask)
+    export_scores(c, test_image_list, super_mask, seg_threshold)
+    export_test_images(c, test_image_list, gt_mask, super_mask, seg_threshold)
+    export_hist(c, gt_mask, super_mask, seg_threshold)

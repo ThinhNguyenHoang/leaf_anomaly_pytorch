@@ -23,19 +23,12 @@ def main(c):
     else:
         raise NotImplementedError('{} is not supported action-type!'.format(c.action_type))
     # image
-    if ('vit' in c.enc_arch) or ('efficient' in c.enc_arch):
-        # encoder = timm.create_model(c.enc_arch, pretrained=True)
-        arch_config = resolve_data_config({}, model=encoder)
-        c.norm_mean, c.norm_std = list(arch_config['mean']), list(arch_config['mean'])
-        c.img_size = arch_config['input_size'][1:]  # HxW format
-        c.crp_size = arch_config['input_size'][1:]  # HxW format
+    c.img_size = (c.input_size, c.input_size)  # HxW format
+    c.crp_size = (c.input_size, c.input_size)  # HxW format
+    if c.dataset == 'stc':
+        c.norm_mean, c.norm_std = 3*[0.5], 3*[0.225]
     else:
-        c.img_size = (c.input_size, c.input_size)  # HxW format
-        c.crp_size = (c.input_size, c.input_size)  # HxW format
-        if c.dataset == 'stc':
-            c.norm_mean, c.norm_std = 3*[0.5], 3*[0.225]
-        else:
-            c.norm_mean, c.norm_std = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
+        c.norm_mean, c.norm_std = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
     #
     c.img_dims = [3] + list(c.img_size)
     # network hyperparameters
@@ -76,6 +69,8 @@ def main(c):
     os.environ['CUDA_VISIBLE_DEVICES'] = c.gpu
     c.use_cuda = not c.no_cuda and torch.cuda.is_available()
     init_seeds(seed=int(time.time()))
+    if c.use_cuda:
+        print("=================== PREPARING TO TRAIN WITH GPU ==============================")
     c.device = torch.device("cuda" if c.use_cuda else "cpu")
     # selected function:
     if c.action_type in ['norm-train', 'norm-test']:

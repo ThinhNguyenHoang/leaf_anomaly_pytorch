@@ -264,33 +264,21 @@ def train(c):
     print('Number of pool layers =', L)
     encoder, pool_layers, pool_dims = load_encoder_arch(c, L)
     encoder = encoder.to(c.device).eval()
-    #print(encoder)
     # NF decoder
     saliency_detector = load_saliency_detector_arch(c)
     decoders = [load_decoder_arch(c, pool_dim) for pool_dim in pool_dims]
     decoders = [decoder.to(c.device) for decoder in decoders]
+
+    # optimizer
     params = list(decoders[0].parameters())
     for l in range(1, L):
         params += list(decoders[l].parameters())
-    # optimizer
     optimizer = torch.optim.Adam(params, lr=c.lr)
-    # data
-    kwargs = {'num_workers': c.workers, 'pin_memory': True} if c.use_cuda else {}
-    # task data
-    if c.dataset == 'mvtec':
-        train_dataset = MVTecDataset(c, is_train=True)
-        test_dataset  = MVTecDataset(c, is_train=False)
-    elif c.dataset == 'stc':
-        train_dataset = StcDataset(c, is_train=True)
-        test_dataset  = StcDataset(c, is_train=False)
-    else:
-        raise NotImplementedError('{} is not supported dataset!'.format(c.dataset))
-    #
-    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=c.batch_size, shuffle=True, drop_last=True, **kwargs)
-    test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=c.batch_size, shuffle=False, drop_last=False, **kwargs)
+
+    # data preparation
+    train_loader, test_loader = prepare_dataset(c)
     N = 256  # hyperparameter that increases batch size for the decoder model by N
-    print('train/test loader length', len(train_loader.dataset), len(test_loader.dataset))
-    print('train/test loader batches', len(train_loader), len(test_loader))
+
     # stats
     det_roc_obs = Score_Observer('DET_AUROC')
     seg_roc_obs = Score_Observer('SEG_AUROC')
@@ -349,19 +337,4 @@ def train(c):
     save_results(det_roc_obs, seg_roc_obs, seg_pro_obs, c.model, c.class_name, run_date)
     # export visualuzations
     if c.viz:
-        precision, recall, thresholds = precision_recall_curve(gt_label, score_label)
-        a = 2 * precision * recall
-        b = precision + recall
-        f1 = np.divide(a, b, out=np.zeros_like(a), where=b != 0)
-        det_threshold = thresholds[np.argmax(f1)]
-        print('Optimal DET Threshold: {:.2f}'.format(det_threshold))
-        precision, recall, thresholds = precision_recall_curve(gt_mask.flatten(), super_mask.flatten())
-        a = 2 * precision * recall
-        b = precision + recall
-        f1 = np.divide(a, b, out=np.zeros_like(a), where=b != 0)
-        seg_threshold = thresholds[np.argmax(f1)]
-        print('Optimal SEG Threshold: {:.2f}'.format(seg_threshold))
-        export_groundtruth(c, test_image_list, gt_mask)
-        export_scores(c, test_image_list, super_mask, seg_threshold)
-        export_test_images(c, test_image_list, gt_mask, super_mask, seg_threshold)
-        export_hist(c, gt_mask, super_mask, seg_threshold)
+        save_visualization(c, test_image_list, super_mask, gt_mask, gt_label, score_label)
