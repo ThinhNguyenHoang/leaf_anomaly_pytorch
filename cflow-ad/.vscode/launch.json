@@ -9,7 +9,7 @@
             "type": "python",
             "request": "launch",
             "program": "main.py",
-            "args": ["--gpu", "0","-bs", "4", "-enc", "wide_resnet50_2", "--pro", "-inp", "256", "--dataset", "mvtec", "--class-name", "cable"],
+            "args": ["--gpu", "0","-bs", "4", "-enc", "wide_resnet50_2", "--pro", "-inp", "256", "--dataset", "mvtec", "--class-name", "cable", "--meta-epochs", "10"],
             "console": "integratedTerminal",
             "justMyCode": true
         }

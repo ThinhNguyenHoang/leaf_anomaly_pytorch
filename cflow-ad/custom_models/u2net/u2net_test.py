@@ -66,13 +66,13 @@ def load_u2net_eval(model_dir:str):
         net.cuda()
     else:
         net.load_state_dict(torch.load(model_dir, map_location='cpu'))
-    net.eval()
     return net
 
 # img: should be of shape (B, 3, H, W) or (3, H, W)
 # return: saliency map of shape (B ,1, H, W)
 # can either pass in a batch of iamges or a single image of dim3
 def eval_with_u2net(net, img):
+    net.eval()
     inputs_test = img
     inputs_test = inputs_test.type(torch.FloatTensor)
     
@@ -84,8 +84,8 @@ def eval_with_u2net(net, img):
         inputs_test = Variable(inputs_test.cuda())
     else:
         inputs_test = Variable(inputs_test)
-
-    d1,d2,d3,d4,d5,d6,d7= net(inputs_test)
+    with torch.no_grad():
+        d1,d2,d3,d4,d5,d6,d7= net(inputs_test)
 
     # normalization
     pred = d1[:,0,:,:]

@@ -56,8 +56,9 @@ def train_meta_epoch(c, epoch, loader,saliency_detector, encoder, decoders, opti
                 saliency_resized = transforms.Resize([H, W])(saliency_map).unsqueeze(1)
                 # POSITIONAL ENCODING
                 positional_encoding = positionalencoding2d(P, H, W).to(c.device).unsqueeze(0).repeat(B, 1, 1, 1) # BxPxHxW
-                # condition_vector = torch.mul(saliency_resized, positional_encoding)
                 condition_vector = positional_encoding
+                if c.use_saliency:
+                    condition_vector = torch.mul(saliency_resized, positional_encoding)
                 # BxPxHxW -----> BxPx(HW)---------> Bx(HW)xP ----> BHWxP
                 condition_vector_reshaped = condition_vector.reshape(B, P, S).transpose(1, 2).reshape(E, P)  # BHWxP
                 # BxCxHxW -----> BxCx(HW)---------> Bx(HW)xC ----> BHWxC
@@ -330,11 +331,11 @@ def train(c):
         super_mask = score_mask.max() - score_mask
         # calculate detection AUROC
         score_label = np.max(super_mask, axis=(1, 2))
-        gt_label = np.asarray(gt_label_list, dtype=np.bool)
+        gt_label = np.asarray(gt_label_list, dtype=bool)
         det_roc_auc = roc_auc_score(gt_label, score_label)
         _ = det_roc_obs.update(100.0*det_roc_auc, epoch)
         # calculate segmentation AUROC
-        gt_mask = np.squeeze(np.asarray(gt_mask_list, dtype=np.bool), axis=1)
+        gt_mask = np.squeeze(np.asarray(gt_mask_list, dtype=bool), axis=1)
         seg_roc_auc = roc_auc_score(gt_mask.flatten(), super_mask.flatten())
         save_best_seg_weights = seg_roc_obs.update(100.0*seg_roc_auc, epoch)
         if save_best_seg_weights and c.action_type != 'norm-test':
@@ -353,7 +354,7 @@ def train(c):
             pros_std = []
             threds = []
             fprs = []
-            binary_score_maps = np.zeros_like(super_mask, dtype=np.bool)
+            binary_score_maps = np.zeros_like(super_mask, dtype=bool)
             for step in range(max_step):
                 thred = max_th - step * delta
                 # segmentation
