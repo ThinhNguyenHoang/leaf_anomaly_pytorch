@@ -19,8 +19,7 @@ def init_seeds(seed=0):
 def main(c):
     # model
     if c.action_type in ['norm-train', 'norm-test']:
-        c.model = "{}_{}_{}_pl{}_cb{}_inp{}_run{}_{}".format(
-            c.dataset, c.enc_arch, c.dec_arch, c.pool_layers, c.coupling_blocks, c.input_size, c.run_name, c.class_name)
+        c.model = f"{c.dataset}{'_saliency' if c.use_saliency else ''}_{c.enc_arch}_{c.dec_arch}_pl{c.pool_layers}_cb{c.coupling_blocks}_inp{c.input_size}_run{c.run_name}_{c.class_name}"
     else:
         raise NotImplementedError('{} is not supported action-type!'.format(c.action_type))
     # image

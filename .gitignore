@@ -8,3 +8,7 @@ __pycache__
 *.pt
 *.xml
 *.pth
+0*
+*.txt
+*.swp
+hist*
