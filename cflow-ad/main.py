@@ -38,10 +38,8 @@ def main(c):
     # dataloader parameters
     if c.dataset == 'mvtec':
         c.data_path = './data/MVTec-AD'
-    elif c.dataset == 'stc':
-        c.data_path = './data/STC/shanghaitech'
-    elif c.dataset == 'video':
-        c.data_path = c.video_path
+    elif c.dataset == 'plant_village':
+        c.data_path = './data/PlantVillage'
     else:
         raise NotImplementedError('{} is not supported dataset!'.format(c.dataset))
     # output settings

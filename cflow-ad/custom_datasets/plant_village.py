@@ -12,11 +12,20 @@ CLASS_TO_NUM = {'Pepper__bell___Bacterial_spot': 0, 'Pepper__bell___healthy': 1,
 
 class PlantVillageDataset(Dataset):
     def __init__(self, c, is_train=True):
-        assert c.class_name in PLANT_VILLAGE_CLASS_NAMES, 'class_name: {}, should be in {}'.format(c.class_name, PLANT_VILLAGE_CLASS_NAMES)
+        #
         self.dataset_path = c.data_path
         self.class_name = c.class_name
         self.is_train = is_train
         self.cropsize = c.crp_size
+        # Checking
+        acceptable_plants = list(dict.fromkeys([label.split('__')[0] for label in PLANT_VILLAGE_CLASS_NAMES]))
+        plant_names = list(filter(lambda label: label.find('_') == -1, acceptable_plants))
+        # assert c.class_name in PLANT_VILLAGE_CLASS_NAMES, 'class_name: {}, should be in {}'.format(c.class_name, PLANT_VILLAGE_CLASS_NAMES)
+        assert c.class_name in plant_names, f'class_name: {c.class_name}, should be in {plant_names}'
+        # Storing healthy label name for this plant
+        self.classes_of_plant = [label for label in PLANT_VILLAGE_CLASS_NAMES if label.lower().find(c.class_name.lower()) != -1]
+        self.healthy_classname = [item for item in self.classes_of_plant if item.find('healthy')][0]
+        assert self.healthy_classname, f'There must be a healthy class for plant {c.class_name}'
         # load dataset
         self.x, self.y, self.mask = self.load_dataset_folder()
         # set transforms
@@ -44,11 +53,6 @@ class PlantVillageDataset(Dataset):
         x, y, mask = self.x[idx], self.y[idx], self.mask[idx]
         #x = Image.open(x).convert('RGB')
         x = Image.open(x)
-        if self.class_name in ['zipper', 'screw', 'grid']:  # handle greyscale classes
-            x = np.expand_dims(np.array(x), axis=2)
-            x = np.concatenate([x, x, x], axis=2)
-            x = Image.fromarray(x.astype('uint8')).convert('RGB')
-        #
         x = self.normalize(self.transform_x(x))
         #
         if y == 0:
@@ -66,33 +70,40 @@ class PlantVillageDataset(Dataset):
         phase = 'train' if self.is_train else 'test'
         x, y, mask = [], [], []
 
-        img_dir = os.path.join(self.dataset_path, self.class_name, phase)
-        gt_dir = os.path.join(self.dataset_path, self.class_name, 'ground_truth')
-
-        img_types = sorted(os.listdir(img_dir))
-        for img_type in img_types:
-
+        if phase == 'train':
             # load images
-            img_type_dir = os.path.join(img_dir, img_type)
+            img_type_dir = os.path.join(self.dataset_path, self.healthy_classname)
             if not os.path.isdir(img_type_dir):
-                continue
+                raise ValueError(f'no dir exist with name {img_type_dir}')
             img_fpath_list = sorted([os.path.join(img_type_dir, f)
                                      for f in os.listdir(img_type_dir)
-                                     if f.endswith('.png')])
+                                     if f.endswith('.JPG')])
             x.extend(img_fpath_list)
 
             # load gt labels
-            if img_type == 'good':
-                y.extend([0] * len(img_fpath_list))
-                mask.extend([None] * len(img_fpath_list))
-            else:
-                y.extend([1] * len(img_fpath_list))
-                gt_type_dir = os.path.join(gt_dir, img_type)
-                img_fname_list = [os.path.splitext(os.path.basename(f))[0] for f in img_fpath_list]
-                gt_fpath_list = [os.path.join(gt_type_dir, img_fname + '_mask.png')
-                                 for img_fname in img_fname_list]
-                mask.extend(gt_fpath_list)
+            y.extend([0] * len(img_fpath_list))
+            mask.extend([None] * len(img_fpath_list))
 
+        elif phase == 'test':
+            img_types = sorted(self.classes_of_plant)
+            for img_type in img_types:
+                # load images
+                img_type_dir = os.path.join(self.dataset_path, img_type)
+                if not os.path.isdir(img_type_dir):
+                    continue
+                img_fpath_list = sorted([os.path.join(img_type_dir, f)
+                                        for f in os.listdir(img_type_dir)
+                                        if f.endswith('.JPG')])
+                x.extend(img_fpath_list)
+
+                # load gt labels
+                if img_type == self.healthy_classname:
+                    y.extend([0] * len(img_fpath_list))
+                    mask.extend([None] * len(img_fpath_list))
+                else:
+                    y.extend([1] * len(img_fpath_list))
+                    mask.extend([None] * len(img_fpath_list))
+        assert len(x) > 0, 'Dataset should not be null (No sample)'
         assert len(x) == len(y), 'number of x and y should be same'
 
         return list(x), list(y), list(mask)
