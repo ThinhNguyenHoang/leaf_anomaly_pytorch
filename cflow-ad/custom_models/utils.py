@@ -14,6 +14,14 @@ except ImportError:
     from torch.utils.model_zoo import load_url as load_state_dict_from_url
 
 
+def save_model_metrics(metric_obs_list, model_name, run_date):
+    result = ''
+    for obs in metric_obs_list:
+        result += f'{obs.name}: {obs.max_score} at epoch {obs.max_epoch}\n'
+    fp = open(os.path.join(RESULT_DIR, f'{model_name}_{run_date}.txt'), "w")
+    fp.write(result)
+    fp.close()
+
 def save_results(det_roc_obs, seg_roc_obs, seg_pro_obs, model_name, class_name, run_date):
     result = '{:.2f},{:.2f},{:.2f} \t\tfor {:s}/{:s}/{:s} at epoch {:d}/{:d}/{:d} for {:s}\n'.format(
         det_roc_obs.max_score, seg_roc_obs.max_score, seg_pro_obs.max_score,
