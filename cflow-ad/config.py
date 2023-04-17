@@ -11,11 +11,11 @@ def get_args():
     parser.add_argument('--checkpoint', default='', type=str, metavar='D',
                         help='file with saved checkpoint')
     # Condition for CFLOW
-    parser.add_argument('--use_saliency', default=True, type=bool, metavar='C')
-    
+    parser.add_argument('--use-saliency', default=True, type=bool, metavar='C')
+
     parser.add_argument('-cl', '--class-name', default='none', type=str, metavar='C',
                         help='class name for MVTec/STC (default: none)')
-    parser.add_argument('--obj_det', type=float, default=2e-4, metavar='A',
+    parser.add_argument('--obj-det', type=float, default=2e-4, metavar='A',
                         help='saliency detector (default: u2net)')
     # Genral Model Architecture
     parser.add_argument('-enc', '--enc-arch', default='wide_resnet50_2', type=str, metavar='A',
@@ -31,9 +31,9 @@ def get_args():
                         help='name of the run (default: 0)')
     parser.add_argument('-inp', '--input-size', default=256, type=int, metavar='C',
                         help='image resize dimensions (default: 256)')
-    parser.add_argument("--action-type", default='norm-train', type=str, metavar='T',
-                        help='norm-train/norm-test (default: norm-train)')
-    
+    parser.add_argument("--action-type", default='norm-train', type=str, metavar='T', help='norm-train/norm-test (default: norm-train)')
+    parser.add_argument("--local-test", action='store_true', default=False, help='run only on subset of data')
+
     # Hyperparameters
     parser.add_argument('-bs', '--batch-size', default=32, type=int, metavar='B',
                         help='train batch size (default: 32)')
@@ -43,13 +43,12 @@ def get_args():
                         help='number of meta epochs to train (default: 25)')
     parser.add_argument('--sub-epochs', type=int, default=8, metavar='N',
                         help='number of sub epochs to train (default: 8)')
-    
     # Evaluation params
     parser.add_argument('--pro', action='store_true', default=False,
                         help='enables estimation of AUPRO metric')
     parser.add_argument('--viz', action='store_true', default=False,
                         help='saves test data visualizations')
-    
+
     # Multi-processing
     parser.add_argument('--workers', default=4, type=int, metavar='G',
                         help='number of data loading workers (default: 4)')
@@ -61,5 +60,5 @@ def get_args():
                         help='video file path')
 
     args = parser.parse_args()
-    
+
     return args
