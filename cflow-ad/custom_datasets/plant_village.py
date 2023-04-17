@@ -11,12 +11,14 @@ NUM_TO_CLASS = {0: 'Pepper__bell___Bacterial_spot', 1: 'Pepper__bell___healthy',
 CLASS_TO_NUM = {'Pepper__bell___Bacterial_spot': 0, 'Pepper__bell___healthy': 1, 'Potato___Early_blight': 2, 'Potato___Late_blight': 3, 'Potato___healthy': 4, 'Tomato_Bacterial_spot': 5, 'Tomato_Early_blight': 6, 'Tomato_Late_blight': 7, 'Tomato_Leaf_Mold': 8, 'Tomato_Septoria_leaf_spot': 9, 'Tomato_Spider_mites_Two_spotted_spider_mite': 10, 'Tomato__Target_Spot': 11, 'Tomato__Tomato_YellowLeaf__Curl_Virus': 12, 'Tomato__Tomato_mosaic_virus': 13, 'Tomato_healthy': 14}
 
 class PlantVillageDataset(Dataset):
-    def __init__(self, c, is_train=True):
+    def __init__(self, c, is_train=True, split_ratio=0.8):
         #
+        self.c = c
         self.dataset_path = c.data_path
         self.class_name = c.class_name
         self.is_train = is_train
         self.cropsize = c.crp_size
+        self.split_ratio = split_ratio
         # Checking
         acceptable_plants = list(dict.fromkeys([label.split('__')[0] for label in PLANT_VILLAGE_CLASS_NAMES]))
         plant_names = list(filter(lambda label: label.find('_') == -1, acceptable_plants))
@@ -65,6 +67,16 @@ class PlantVillageDataset(Dataset):
 
     def __len__(self):
         return len(self.x)
+    def get_random_samples_with_limit(self, x,y,mask, limit):
+        num_sample_total = len(x)
+        limit = 100 if 100 < num_sample_total else num_sample_total
+        ran_idx = np.random.randint(0, num_sample_total, limit)
+        # Mix up the array (To make sure that there are both healthy and disease samples)
+        x_trimmed = [x[idx] for idx in ran_idx]
+        y_trimmed = [y[idx] for idx in ran_idx]
+        m_trimmed = [mask[idx] for idx in ran_idx]
+        # Cut off by the limit
+        return x_trimmed, y_trimmed, m_trimmed
 
     def load_dataset_folder(self):
         phase = 'train' if self.is_train else 'test'
@@ -83,6 +95,12 @@ class PlantVillageDataset(Dataset):
             # load gt labels
             y.extend([0] * len(img_fpath_list))
             mask.extend([None] * len(img_fpath_list))
+            assert len(x) > 0, 'Dataset should not be null (No sample)'
+            assert len(x) == len(y), 'number of x and y should be same'
+            if self.c.local_test:
+                x,y, mask = self.get_random_samples_with_limit(x,y,mask,100)
+                return list(x), list(y), list(mask)
+            return list(x), list(y), list(mask)
 
         elif phase == 'test':
             img_types = sorted(self.classes_of_plant)
@@ -103,7 +121,13 @@ class PlantVillageDataset(Dataset):
                 else:
                     y.extend([1] * len(img_fpath_list))
                     mask.extend([None] * len(img_fpath_list))
-        assert len(x) > 0, 'Dataset should not be null (No sample)'
-        assert len(x) == len(y), 'number of x and y should be same'
+                assert len(x) > 0, 'Dataset should not be null (No sample)'
+                assert len(x) == len(y), 'number of x and y should be same'
 
-        return list(x), list(y), list(mask)
+            if self.c.local_test:
+                x, y, mask = self.get_random_samples_with_limit(x,y,mask,100)
+                assert (0 in y) and (1 in y), "There shuold be samples of both healthy and disease"
+                return list(x), list(y), list(mask)
+            return list(x), list(y), list(mask)
+        else:
+            raise KeyError("Unknown running phase (Must be train/test)")
