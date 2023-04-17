@@ -6,7 +6,7 @@ RESULT_DIR = './results'
 WEIGHT_DIR = './weights'
 MODEL_DIR  = './models'
 
-__all__ = ('save_results', 'save_weights', 'load_weights', 'adjust_learning_rate', 'warmup_learning_rate')
+__all__ = ('save_results', 'save_weights', 'load_weights', 'adjust_learning_rate', 'warmup_learning_rate', 'save_model_metrics')
 
 try:
     from torch.hub import load_state_dict_from_url

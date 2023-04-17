@@ -2,7 +2,7 @@ import os, time
 import numpy as np
 import torch
 import torch.nn.functional as F
-from sklearn.metrics import roc_auc_score
+from sklearn.metrics import roc_auc_score, accuracy_score, precision_score, recall_score
 from tqdm import tqdm
 from visualize import *
 from model import load_decoder_arch, load_encoder_arch, positionalencoding2d, activation, load_saliency_detector_arch, get_saliency_map
@@ -203,6 +203,9 @@ def train(c):
     det_roc_obs = Score_Observer('DET_AUROC')
     seg_roc_obs = Score_Observer('SEG_AUROC')
     seg_pro_obs = Score_Observer('SEG_AUPRO')
+    accuracy_obs = Score_Observer('ACCURACY')
+    precision_obs = Score_Observer('PRECISION')
+    recall_obs = Score_Observer('RECALL')
     if c.action_type == 'norm-test':
         c.meta_epochs = 1
     for epoch in range(c.meta_epochs):
@@ -228,21 +231,36 @@ def train(c):
             # upsample
             test_map[l] = F.interpolate(test_mask.unsqueeze(1),
                 size=c.crp_size, mode='bilinear', align_corners=True).squeeze().numpy()
+
+        # EVALUATION METRICS
         # score aggregation
-        score_map = np.zeros_like(test_map[0])
+        score_map = np.zeros_like(test_map[0]) # BxHxW
         for l, p in enumerate(pool_layers):
             score_map += test_map[l]
         score_mask = score_map
         # invert probs to anomaly scores
-        super_mask = score_mask.max() - score_mask
+        # --> Lower likelihood --> Higher score --> Abnormal points
+        # --> Max likelihood (or near max) --> Normal points
+        super_mask = score_mask.max() - score_mask # scalar - BxHxW
         # calculate detection AUROC
-        score_label = np.max(super_mask, axis=(1, 2))
+        score_label = np.max(super_mask, axis=(1, 2)) # score_label (B,) <-- max([B, H, W])
         gt_label = np.asarray(gt_label_list, dtype=bool)
+        # precision | accuracy | recall
+        accuracy = accuracy_score(gt_label, score_label)
+        _ = accuracy_obs.update(accuracy *100, epoch)
+        precision = precision_score(gt_label, score_label)
+        _ = precision_obs.update(precision *100, epoch)
+        recall = recall_score(gt_label, score_label)
+        _ = recall_obs.update(recall *100, epoch)
+        # auc_roc
         det_roc_auc = roc_auc_score(gt_label, score_label)
         _ = det_roc_obs.update(100.0*det_roc_auc, epoch)
+
+        # det_aur_roc
         # calculate segmentation AUROC
         gt_mask = np.squeeze(np.asarray(gt_mask_list, dtype=bool), axis=1)
         seg_roc_auc = roc_auc_score(gt_mask.flatten(), super_mask.flatten())
+
         save_best_seg_weights = seg_roc_obs.update(100.0*seg_roc_auc, epoch)
         if save_best_seg_weights and c.action_type != 'norm-test':
             save_weights(encoder, decoders, c.model, run_date)  # avoid unnecessary saves
@@ -251,7 +269,8 @@ def train(c):
         if c.pro:  # and (epoch % 4 == 0):  # AUPRO is expensive to compute
             calculate_seg_pro_auc(super_mask, gt_mask, epoch, seg_pro_obs)
     #
-    save_results(det_roc_obs, seg_roc_obs, seg_pro_obs, c.model, c.class_name, run_date)
+    # save_results(det_roc_obs, seg_roc_obs, seg_pro_obs, c.model, c.class_name, run_date)
+    save_model_metrics([accuracy_obs, precision_obs, recall_obs, det_roc_obs, seg_roc_obs],c.model, c.class_name, run_date)
     # export visualuzations
     if c.viz:
         save_visualization(c, test_image_list, super_mask, gt_mask, gt_label, score_label)

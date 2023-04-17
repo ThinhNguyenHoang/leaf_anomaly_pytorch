@@ -26,7 +26,8 @@
                 "--meta-epochs",
                 "2",
                 "--sub-epochs",
-                "2"
+                "2",
+                "--local-test"
             ],
             "console": "integratedTerminal",
             "justMyCode": true
@@ -56,7 +57,8 @@
                 "Tomato",
                 "--meta-epochs",
                 "1",
-                "--viz"
+                "--viz",
+                "--local-test"
             ],
             "console": "integratedTerminal",
             "justMyCode": true
@@ -83,7 +85,8 @@
                 "--meta-epochs",
                 "1",
                 "--sub-epochs",
-                "1"
+                "1",
+                // "--local-test"
             ],
             "console": "integratedTerminal",
             "justMyCode": true
