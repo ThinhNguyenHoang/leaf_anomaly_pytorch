@@ -45,6 +45,10 @@ def get_logp(C, z, logdet_J):
 def rescale(x):
     return (x - x.min()) / (x.max() - x.min())
 
+def rescale_and_score(x):
+    scaled_x = rescale(x)
+    return np.where(scaled_x > 0.5, True, False)
+
 def calculate_seg_pro_auc(super_mask, gt_mask, epoch, seg_pro_obs):
     max_step = 1000
     expect_fpr = 0.3  # default 30%

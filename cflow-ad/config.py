@@ -12,7 +12,7 @@ def get_args():
                         help='file with saved checkpoint')
     # Condition for CFLOW
     parser.add_argument('--use-saliency', default=True, type=bool, metavar='C')
-
+    parser.add_argument('--no-mask', action='store_true',default=False, help='does data includes mask of anomaly')
     parser.add_argument('-cl', '--class-name', default='none', type=str, metavar='C',
                         help='class name for MVTec/STC (default: none)')
     parser.add_argument('--obj-det', type=float, default=2e-4, metavar='A',

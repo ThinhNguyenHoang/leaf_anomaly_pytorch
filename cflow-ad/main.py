@@ -35,11 +35,12 @@ def main(c):
     c.clamp_alpha = 1.9  # see paper equation 2 for explanation
     c.condition_vec = 128
     c.dropout = 0.0  # dropout in s-t-networks
-    # dataloader parameters
+    # DATASET SPECIFIC ARGUMENTS ADJUSTMENT
     if c.dataset == 'mvtec':
         c.data_path = './data/MVTec-AD'
     elif c.dataset == 'plant_village':
         c.data_path = './data/PlantVillage'
+        c.no_mask = True
     else:
         raise NotImplementedError('{} is not supported dataset!'.format(c.dataset))
     # output settings

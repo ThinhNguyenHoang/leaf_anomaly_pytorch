@@ -57,11 +57,10 @@ class PlantVillageDataset(Dataset):
         x = Image.open(x)
         x = self.normalize(self.transform_x(x))
         #
-        if y == 0:
-            mask = torch.zeros([1, self.cropsize[0], self.cropsize[1]])
-        else:
-            mask = Image.open(mask)
-            mask = self.transform_mask(mask)
+        mask = torch.zeros([1, self.cropsize[0], self.cropsize[1]])
+        # else:
+        #     mask = Image.open(mask)
+        #     mask = self.transform_mask(mask)
 
         return x, y, mask
 
