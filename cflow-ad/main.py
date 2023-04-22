@@ -6,7 +6,7 @@ import torch
 # from timm.data import resolve_data_config
 from config import get_args
 from train import train
-
+import cloud_utils
 
 def init_seeds(seed=0):
     random.seed(seed)
@@ -15,7 +15,20 @@ def init_seeds(seed=0):
     torch.cuda.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
 
-
+def prepare_dataset_path(c):
+    # DATASET SPECIFIC ARGUMENTS ADJUSTMENT
+    if c.dataset == 'mvtec':
+        c.data_path = './data/MVTec-AD'
+        raise NotImplementedError('{} is not supported for running on cloud!'.format(c.dataset))
+        # if c.gcp:
+        #     c.data_path = os.path.join(cloud_utils.get_bucket_prefix(), 'datasets','MVTec-AD')
+    elif c.dataset == 'plant_village':
+        c.data_path = './data/PlantVillage'
+        c.no_mask = True
+        if c.gcp:
+            c.data_path = os.path.join(cloud_utils.get_bucket_prefix(), 'datasets','PlantVillage')
+    else:
+        raise NotImplementedError('{} is not supported dataset!'.format(c.dataset))
 def main(c):
     # model
     if c.action_type in ['norm-train', 'norm-test']:
@@ -35,14 +48,6 @@ def main(c):
     c.clamp_alpha = 1.9  # see paper equation 2 for explanation
     c.condition_vec = 128
     c.dropout = 0.0  # dropout in s-t-networks
-    # DATASET SPECIFIC ARGUMENTS ADJUSTMENT
-    if c.dataset == 'mvtec':
-        c.data_path = './data/MVTec-AD'
-    elif c.dataset == 'plant_village':
-        c.data_path = './data/PlantVillage'
-        c.no_mask = True
-    else:
-        raise NotImplementedError('{} is not supported dataset!'.format(c.dataset))
     # output settings
     c.verbose = True
     c.hide_tqdm_bar = True
@@ -64,6 +69,13 @@ def main(c):
                     1 + math.cos(math.pi * c.lr_warm_epochs / c.meta_epochs)) / 2
         else:
             c.lr_warmup_to = c.lr
+    # Handle running the model on the google-cloud-platform
+    prepare_dataset_path(c)
+    if c.gcp:
+        # Load images data from the cloud storage bucket
+        # Load saved weight from the cloud storage
+        # Save the model weight to the cloud storage
+        
     ########
     os.environ['CUDA_VISIBLE_DEVICES'] = c.gpu
     c.use_cuda = not c.no_cuda and torch.cuda.is_available()

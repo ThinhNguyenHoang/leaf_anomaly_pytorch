@@ -82,7 +82,6 @@ class BasicBlock(nn.Module):
 
         return out
 
-
 class Bottleneck(nn.Module):
     # Bottleneck in torchvision places the stride for downsampling at 3x3 convolution(self.conv2)
     # while original implementation places the stride at the first 1x1 convolution(self.conv1)
@@ -260,6 +259,7 @@ def _resnet(
         model.load_state_dict(state_dict, strict=False)
     return model
 
+a = 'https://download.pytorch.org/models/wide_resnet50_2-95faca4d.pth'
 
 def resnet18(pretrained: bool = False, progress: bool = True, **kwargs: Any) -> ResNet:
     r"""ResNet-18 model from
@@ -363,7 +363,14 @@ def wide_resnet50_2(pretrained: bool = False, progress: bool = True, **kwargs: A
         progress (bool): If True, displays a progress bar of the download to stderr
     """
     kwargs['width_per_group'] = 64 * 2
-    return _resnet('wide_resnet50_2', Bottleneck, [3, 4, 6, 3],
+    block_type = Bottleneck
+    layers = [3, 4, 6 ,3]
+    if 'model_prepared_dir' in kwargs:
+        pre_downloaded_model_path = kwargs['model_prepared_path']
+        model = ResNet(Bottleneck, layers, **kwargs)
+        model.load_state_dict(torch.load(pre_downloaded_model_path), strict=False)
+        return model
+    return _resnet('wide_resnet50_2', block_type, layers,
                    pretrained, progress, **kwargs)
 
 

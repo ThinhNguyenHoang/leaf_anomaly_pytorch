@@ -10,6 +10,8 @@ def get_args():
                         help='dataset name: mvtec/stc (default: mvtec)')
     parser.add_argument('--checkpoint', default='', type=str, metavar='D',
                         help='file with saved checkpoint')
+    # Handle running in GCS
+    parser.add_argument("--gcp", action='store_true', default=False, help='Run the training on Google Cloud Platform')
     # Condition for CFLOW
     parser.add_argument('--use-saliency', default=True, type=bool, metavar='C')
     parser.add_argument('--no-mask', action='store_true',default=False, help='does data includes mask of anomaly')

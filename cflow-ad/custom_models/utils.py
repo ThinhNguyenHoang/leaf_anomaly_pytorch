@@ -34,13 +34,13 @@ def save_results(det_roc_obs, seg_roc_obs, seg_pro_obs, model_name, class_name, 
     fp.close()
 
 
-def save_weights(encoder, decoders, model_name, run_date):
-    if not os.path.exists(WEIGHT_DIR):
-        os.makedirs(WEIGHT_DIR)
+def save_weights(c, encoder, decoders, model_name, run_date):
+    if not os.path.exists(c.weight_dir):
+        os.makedirs(c.weight_dir)
     state = {'encoder_state_dict': encoder.state_dict(),
              'decoder_state_dict': [decoder.state_dict() for decoder in decoders]}
     filename = '{}_{}.pt'.format(model_name, run_date)
-    path = os.path.join(WEIGHT_DIR, filename)
+    path = os.path.join(c.weight_dir, filename)
     torch.save(state, path)
     print('Saving weights to {}'.format(filename))
 

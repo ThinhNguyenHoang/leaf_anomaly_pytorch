@@ -5,7 +5,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python: plant_village_train_Tomato",
+            "name": "PLANT_VILLAGE__TRAIN:train_Pepper",
             "type": "python",
             "request": "launch",
             "program": "main.py",
@@ -22,18 +22,18 @@
                 "--dataset",
                 "plant_village",
                 "--class-name",
-                "Tomato",
+                "Pepper",
                 "--meta-epochs",
-                "2",
+                "1",
                 "--sub-epochs",
-                "2",
+                "1",
                 "--local-test"
             ],
             "console": "integratedTerminal",
             "justMyCode": true
         },
         {
-            "name": "plant_village_norm-test_Tomato",
+            "name": "PLANT_VILLAGE_TEST:Pepper",
             "type": "python",
             "request": "launch",
             "program": "main.py",
@@ -43,7 +43,7 @@
                 "--action-type",
                 "norm-test",
                 "--checkpoint",
-                "weights/mvtec_wide_resnet50_2_freia-cflow_pl3_cb8_inp256_run0_cable_2023-04-11-11:15:08.pt",
+                "weights/plant_village_saliency_wide_resnet50_2_freia-cflow_pl3_cb8_inp256_run0_Pepper_2023-04-19-18:28:31.pt",
                 "-bs",
                 "4",
                 "-enc",
@@ -54,17 +54,17 @@
                 "--dataset",
                 "plant_village",
                 "--class-name",
-                "Tomato",
+                "Pepper",
                 "--meta-epochs",
                 "1",
                 "--viz",
-                "--local-test"
+                // "--local-test"
             ],
             "console": "integratedTerminal",
             "justMyCode": true
         },
         {
-            "name": "Python: train_ok??",
+            "name": "Python: MVTEC__train_ok??",
             "type": "python",
             "request": "launch",
             "program": "main.py",
@@ -83,16 +83,16 @@
                 "--class-name",
                 "cable",
                 "--meta-epochs",
-                "1",
+                "10",
                 "--sub-epochs",
-                "1",
+                "8",
                 // "--local-test"
             ],
             "console": "integratedTerminal",
             "justMyCode": true
         },
         {
-            "name": "norm-test",
+            "name": "MVTEC__norm-test",
             "type": "python",
             "request": "launch",
             "program": "main.py",
@@ -102,7 +102,7 @@
                 "--action-type",
                 "norm-test",
                 "--checkpoint",
-                "weights/mvtec_saliency_wide_resnet50_2_freia-cflow_pl3_cb8_inp256_run0_cable_2023-04-18-17:55:30.pt",
+                "weights/mvtec_saliency_wide_resnet50_2_freia-cflow_pl3_cb8_inp256_run0_cable_2023-04-18-21:25:28.pt",
                 "-bs",
                 "4",
                 "-enc",

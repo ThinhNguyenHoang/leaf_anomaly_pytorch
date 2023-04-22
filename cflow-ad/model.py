@@ -78,7 +78,7 @@ def get_activation(name):
         activation[name] = output.detach()
     return hook
 
-
+DEFAULT_WIDE_RESNET_50_PATH = 'resnet/weights/wide_resnet50_2-95faca4d.pth'
 def load_encoder_arch(c, L):
     # encoder pretrained on natural images:
     pool_cnt = 0
@@ -94,7 +94,12 @@ def load_encoder_arch(c, L):
         elif c.enc_arch == 'resnext50_32x4d':
             encoder = resnext50_32x4d(pretrained=True, progress=True)
         elif c.enc_arch == 'wide_resnet50_2':
-            encoder = wide_resnet50_2(pretrained=True, progress=True)
+            if c.gcp:
+                # Load model state_dict directly
+                resnet_w_50_2_dir = DEFAULT_WIDE_RESNET_50_PATH
+                encoder = wide_resnet50_2(pretrained=True, progress=True, model_prepared_path=resnet_w_50_2_dir)
+            else:
+                encoder = wide_resnet50_2(pretrained=True, progress=True)
         else:
             raise NotImplementedError('{} is not supported architecture!'.format(c.enc_arch))
         # L = 4 => first branch, L == 2 

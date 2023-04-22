@@ -259,6 +259,10 @@ def train(c):
         # LABEL | Y
         score_label = np.max(super_mask, axis=(1, 2)) # score_label (B,) <-- max([B, H, W], axis=(1,2))
         gt_label = np.asarray(gt_label_list, dtype=bool)
+        # auc_roc
+        det_roc_auc = roc_auc_score(gt_label, score_label)
+        save_weights_best_det_auc_roc = det_roc_obs.update(100.0*det_roc_auc, epoch)
+
         # calculate detection AUROC
         if c.no_mask and c.action_type != 'norm-test':
             # precision | accuracy | recall
@@ -269,12 +273,8 @@ def train(c):
             precision_best_weight = precision_obs.update(precision *100, epoch)
             recall = recall_score(gt_label, binary_score_label)
             _ = recall_obs.update(recall *100, epoch)
-            if precision_best_weight:
+            if save_weights_best_det_auc_roc:
                 save_weights(encoder, decoders, c.model, run_date)
-        # auc_roc
-        det_roc_auc = roc_auc_score(gt_label, score_label)
-        _ = det_roc_obs.update(100.0*det_roc_auc, epoch)
-
 
     #
     # save_results(det_roc_obs, seg_roc_obs, seg_pro_obs, c.model, c.class_name, run_date)
