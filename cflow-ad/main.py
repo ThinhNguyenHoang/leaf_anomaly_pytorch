@@ -1,4 +1,3 @@
-from __future__ import print_function
 import os, random, time, math
 import numpy as np
 import torch
@@ -111,5 +110,8 @@ def main(c):
 
 if __name__ == '__main__':
     c = get_args()
-    main(c)
+    try:
+        main(c)
+    except Exception as e:
+        print(str(e))
 

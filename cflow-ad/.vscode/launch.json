@@ -120,6 +120,15 @@
             ],
             "console": "integratedTerminal",
             "justMyCode": true
+        },
+        {
+            "name": "NO_ARGS",
+            "type": "python",
+            "request": "launch",
+            "program": "main.py",
+            "args": [],
+            "console": "integratedTerminal",
+            "justMyCode": true
         }
     ]
 }
