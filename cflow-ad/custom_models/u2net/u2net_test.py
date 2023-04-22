@@ -50,9 +50,8 @@ def save_output(image_name,pred,d_dir):
 
 
 # model_path: should be the path to the u2net root folder
-def load_u2net_eval(model_dir:str):
+def load_u2net_eval(model_path:str):
     model_name = 'u2net'
-    model_dir = os.path.join(model_dir, 'saved_models', model_name, model_name + '.pth')
         # --------- 3. model define ---------
     if(model_name=='u2net'):
         print("...load U2NET---173.6 MB")
@@ -62,10 +61,10 @@ def load_u2net_eval(model_dir:str):
         net = U2NETP(3,1)
 
     if torch.cuda.is_available():
-        net.load_state_dict(torch.load(model_dir))
+        net.load_state_dict(torch.load(model_path))
         net.cuda()
     else:
-        net.load_state_dict(torch.load(model_dir, map_location='cpu'))
+        net.load_state_dict(torch.load(model_path, map_location='cpu'))
     return net
 
 # img: should be of shape (B, 3, H, W) or (3, H, W)

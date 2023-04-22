@@ -32,8 +32,11 @@ def positionalencoding2d(D, H, W):
     return P
 # ================== SALIENCY DETECTOR =========================
 def load_saliency_detector_arch(c):
-    u2net_dir = os.path.join(os.getcwd(),'custom_models' ,'u2net')
-    return u2net_test.load_u2net_eval(u2net_dir)
+    # u2net_dir = os.path.join(os.getcwd(),'custom_models' ,'u2net')
+    u2net_weight_path = c.u2net_weight_path
+    if c.use_saliency and not u2net_weight_path:
+        raise RuntimeError('Cannot use saliency without path for saved weights of resnet model')
+    return u2net_test.load_u2net_eval(u2net_weight_path)
 def get_saliency_map(detector, input_img):
     pred = u2net_test.eval_with_u2net(detector, input_img)
     return pred
@@ -78,7 +81,6 @@ def get_activation(name):
         activation[name] = output.detach()
     return hook
 
-DEFAULT_WIDE_RESNET_50_PATH = 'resnet/weights/wide_resnet50_2-95faca4d.pth'
 def load_encoder_arch(c, L):
     # encoder pretrained on natural images:
     pool_cnt = 0
@@ -96,13 +98,15 @@ def load_encoder_arch(c, L):
         elif c.enc_arch == 'wide_resnet50_2':
             if c.gcp:
                 # Load model state_dict directly
-                resnet_w_50_2_dir = DEFAULT_WIDE_RESNET_50_PATH
+                resnet_w_50_2_dir = c.wide_resnet50_weight_path
+                if not os.path.exists(c.wide_resnet50_weight_path):
+                    raise RuntimeError('Weight file for wide resnet 50 is not defined')
                 encoder = wide_resnet50_2(pretrained=True, progress=True, model_prepared_path=resnet_w_50_2_dir)
             else:
                 encoder = wide_resnet50_2(pretrained=True, progress=True)
         else:
             raise NotImplementedError('{} is not supported architecture!'.format(c.enc_arch))
-        # L = 4 => first branch, L == 2 
+        # L = 4 => first branch, L == 2
         if L >= 3:
             # Record the layers output into global dictionary activation => To feed the multiscale feature map into NF decoders
             encoder.layer2.register_forward_hook(get_activation(pool_layers[pool_cnt]))
@@ -124,47 +128,6 @@ def load_encoder_arch(c, L):
                 pool_dims.append(encoder.layer4[-1].conv3.out_channels)
             else:
                 pool_dims.append(encoder.layer4[-1].conv2.out_channels)
-            pool_cnt = pool_cnt + 1
-    elif 'efficient' in c.enc_arch:
-        if 'b5' in c.enc_arch:
-            encoder = timm.create_model(c.enc_arch, pretrained=True)
-            blocks = [-2, -3, -5]
-        else:
-            raise NotImplementedError('{} is not supported architecture!'.format(c.enc_arch))
-        #
-        if L >= 3:
-            encoder.blocks[blocks[2]][-1].bn3.register_forward_hook(get_activation(pool_layers[pool_cnt]))
-            pool_dims.append(encoder.blocks[blocks[2]][-1].bn3.num_features)
-            pool_cnt = pool_cnt + 1
-        if L >= 2:
-            encoder.blocks[blocks[1]][-1].bn3.register_forward_hook(get_activation(pool_layers[pool_cnt]))
-            pool_dims.append(encoder.blocks[blocks[1]][-1].bn3.num_features)
-            pool_cnt = pool_cnt + 1
-        if L >= 1:
-            encoder.blocks[blocks[0]][-1].bn3.register_forward_hook(get_activation(pool_layers[pool_cnt]))
-            pool_dims.append(encoder.blocks[blocks[0]][-1].bn3.num_features)
-            pool_cnt = pool_cnt + 1
-    elif 'mobile' in c.enc_arch:
-        if  c.enc_arch == 'mobilenet_v3_small':
-            encoder = mobilenet_v3_small(pretrained=True, progress=True).features
-            blocks = [-2, -5, -10]
-        elif  c.enc_arch == 'mobilenet_v3_large':
-            encoder = mobilenet_v3_large(pretrained=True, progress=True).features
-            blocks = [-2, -5, -11]
-        else:
-            raise NotImplementedError('{} is not supported architecture!'.format(c.enc_arch))
-        #
-        if L >= 3:
-            encoder[blocks[2]].block[-1][-3].register_forward_hook(get_activation(pool_layers[pool_cnt]))
-            pool_dims.append(encoder[blocks[2]].block[-1][-3].out_channels)
-            pool_cnt = pool_cnt + 1
-        if L >= 2:
-            encoder[blocks[1]].block[-1][-3].register_forward_hook(get_activation(pool_layers[pool_cnt]))
-            pool_dims.append(encoder[blocks[1]].block[-1][-3].out_channels)
-            pool_cnt = pool_cnt + 1
-        if L >= 1:
-            encoder[blocks[0]].block[-1][-3].register_forward_hook(get_activation(pool_layers[pool_cnt]))
-            pool_dims.append(encoder[blocks[0]].block[-1][-3].out_channels)
             pool_cnt = pool_cnt + 1
     else:
         raise NotImplementedError('{} is not supported architecture!'.format(c.enc_arch))

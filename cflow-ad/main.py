@@ -15,7 +15,7 @@ def init_seeds(seed=0):
     torch.cuda.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
 
-def prepare_dataset_path(c):
+def handle_dataset_path(c):
     # DATASET SPECIFIC ARGUMENTS ADJUSTMENT
     if c.dataset == 'mvtec':
         c.data_path = './data/MVTec-AD'
@@ -29,6 +29,20 @@ def prepare_dataset_path(c):
             c.data_path = os.path.join(cloud_utils.get_bucket_prefix(), 'datasets','PlantVillage')
     else:
         raise NotImplementedError('{} is not supported dataset!'.format(c.dataset))
+def handle_weight_dir_path(c):
+    c.weight_dir = './weights'
+    if c.gcp:
+        c.weight_dir = os.path.join(cloud_utils.get_bucket_prefix(), 'weights')
+        c.result_dir = os.path.join(cloud_utils.get_bucket_prefix(), 'results')
+
+# Make sure the submodels (resnet, u2net) load the correct saved page for evalation
+def handle_submodel_weight_paths(c):
+    if c.use_saliency:
+        c.u2net_weight_path = 'custom_models/u2net/saved_models/u2net/u2net.pth'
+    if c.gcp:
+        # load from buckets
+        c.wide_resnet50_weight_path = os.path.join(cloud_utils.get_bucket_prefix(), 'resnet','weights', 'wide_resnet50_2-95faca4d.pth')
+        c.u2net_weight_path = os.path.join(cloud_utils.get_bucket_prefix(), 'u2net', 'weights','u2net.pth')
 def main(c):
     # model
     if c.action_type in ['norm-train', 'norm-test']:
@@ -69,13 +83,13 @@ def main(c):
                     1 + math.cos(math.pi * c.lr_warm_epochs / c.meta_epochs)) / 2
         else:
             c.lr_warmup_to = c.lr
-    # Handle running the model on the google-cloud-platform
-    prepare_dataset_path(c)
-    if c.gcp:
-        # Load images data from the cloud storage bucket
-        # Load saved weight from the cloud storage
-        # Save the model weight to the cloud storage
-        
+    # HANLDE DATA AND WEIGHT DIR PATHS:
+    # Load images data from the cloud storage bucket
+    handle_dataset_path(c)
+    # Load submodels' saved weight from the cloud storage
+    handle_submodel_weight_paths(c)
+    # Save the model weight to the cloud storage
+    handle_weight_dir_path(c)
     ########
     os.environ['CUDA_VISIBLE_DEVICES'] = c.gpu
     c.use_cuda = not c.no_cuda and torch.cuda.is_available()

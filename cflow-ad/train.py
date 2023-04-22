@@ -250,7 +250,7 @@ def train(c):
             seg_roc_auc = roc_auc_score(gt_mask.flatten(), super_mask.flatten())
             save_best_seg_weights = seg_roc_obs.update(100.0*seg_roc_auc, epoch)
             if save_best_seg_weights and c.action_type != 'norm-test':
-                save_weights(encoder, decoders, c.model, run_date)  # avoid unnecessary saves
+                save_weights(c, encoder, decoders, c.model, run_date)  # avoid unnecessary saves
             # calculate segmentation AUPRO
             # from https://github.com/YoungGod/DFR:
             if c.pro:  # and (epoch % 4 == 0):  # AUPRO is expensive to compute
@@ -274,7 +274,7 @@ def train(c):
             recall = recall_score(gt_label, binary_score_label)
             _ = recall_obs.update(recall *100, epoch)
             if save_weights_best_det_auc_roc:
-                save_weights(encoder, decoders, c.model, run_date)
+                save_weights(c,encoder, decoders, c.model, run_date)
 
     #
     # save_results(det_roc_obs, seg_roc_obs, seg_pro_obs, c.model, c.class_name, run_date)
