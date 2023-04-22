@@ -2,12 +2,16 @@ from __future__ import print_function
 import os, random, time, math
 import numpy as np
 import torch
+import torchvision
 # import timm
 # from timm.data import resolve_data_config
 from config import get_args
 from train import train
 import cloud_utils
 
+print(f"Notebook runtime: {'GPU' if torch.cuda.is_available() else 'CPU'}")
+print(f"PyTorch version : {torch.__version__}")
+print(f"PyTorch Vision version : {torchvision.__version__}")
 def init_seeds(seed=0):
     random.seed(seed)
     np.random.seed(seed)
