@@ -12,7 +12,9 @@ except ImportError:
     from torch.utils.model_zoo import load_url as load_state_dict_from_url
 
 
-def save_model_metrics(metric_obs_list, model_name, class_name, run_date):
+def save_model_metrics(c, metric_obs_list, model_name, class_name, run_date):
+    if not os.path.exists(c.result_dir):
+        os.makedirs(c.result_dir)
     result = ''
     for obs in metric_obs_list:
         result += f'{obs.name}: {obs.max_score} at epoch {obs.max_epoch}\n'
@@ -21,12 +23,12 @@ def save_model_metrics(metric_obs_list, model_name, class_name, run_date):
     fp.close()
 
 def save_results(det_roc_obs, seg_roc_obs, seg_pro_obs, model_name, class_name, run_date):
+    if not os.path.exists(c.result_dir):
+        os.makedirs(c.result_dir)
     result = '{:.2f},{:.2f},{:.2f} \t\tfor {:s}/{:s}/{:s} at epoch {:d}/{:d}/{:d} for {:s}\n'.format(
         det_roc_obs.max_score, seg_roc_obs.max_score, seg_pro_obs.max_score,
         det_roc_obs.name, seg_roc_obs.name, seg_pro_obs.name,
         det_roc_obs.max_epoch, seg_roc_obs.max_epoch, seg_pro_obs.max_epoch, class_name)
-    if not os.path.exists(c.result_dir):
-        os.makedirs(c.result_dir)
     fp = open(os.path.join(c.result_dir, '{}_{}.txt'.format(model_name, run_date)), "w")
     fp.write(result)
     fp.close()

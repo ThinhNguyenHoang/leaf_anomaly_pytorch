@@ -278,7 +278,7 @@ def train(c):
 
     #
     # save_results(det_roc_obs, seg_roc_obs, seg_pro_obs, c.model, c.class_name, run_date)
-    save_model_metrics([accuracy_obs, precision_obs, recall_obs, det_roc_obs, seg_roc_obs],c.model, c.class_name, run_date)
+    save_model_metrics(c, [accuracy_obs, precision_obs, recall_obs, det_roc_obs, seg_roc_obs],c.model, c.class_name, run_date)
     # export visualuzations
     if c.viz:
         save_visualization(c, test_image_list, super_mask, gt_mask, gt_label, score_label)
