@@ -31,7 +31,7 @@ def handle_dataset_path(c):
         raise NotImplementedError('{} is not supported dataset!'.format(c.dataset))
 def handle_weight_dir_path(c):
     c.weight_dir = './weights'
-    c.result_dir = './resutls'
+    c.result_dir = './results'
     if c.gcp:
         c.weight_dir = os.path.join(cloud_utils.get_bucket_prefix(), 'weights')
         c.result_dir = os.path.join(cloud_utils.get_bucket_prefix(), 'results')
