@@ -11,12 +11,12 @@ NUM_TO_CLASS = {0: 'Pepper__bell___Bacterial_spot', 1: 'Pepper__bell___healthy',
 CLASS_TO_NUM = {'Pepper__bell___Bacterial_spot': 0, 'Pepper__bell___healthy': 1, 'Potato___Early_blight': 2, 'Potato___Late_blight': 3, 'Potato___healthy': 4, 'Tomato_Bacterial_spot': 5, 'Tomato_Early_blight': 6, 'Tomato_Late_blight': 7, 'Tomato_Leaf_Mold': 8, 'Tomato_Septoria_leaf_spot': 9, 'Tomato_Spider_mites_Two_spotted_spider_mite': 10, 'Tomato__Target_Spot': 11, 'Tomato__Tomato_YellowLeaf__Curl_Virus': 12, 'Tomato__Tomato_mosaic_virus': 13, 'Tomato_healthy': 14}
 
 class PlantVillageDataset(Dataset):
-    def __init__(self, c, is_train=True, split_ratio=0.8):
+    def __init__(self, c, phase='train', split_ratio=0.8):
         #
         self.c = c
         self.dataset_path = c.data_path
         self.class_name = c.class_name
-        self.is_train = is_train
+        self.phase = phase
         self.cropsize = c.crp_size
         self.split_ratio = split_ratio
         # Checking
@@ -31,7 +31,7 @@ class PlantVillageDataset(Dataset):
         # load dataset
         self.x, self.y, self.mask = self.load_dataset_folder()
         # set transforms
-        if is_train:
+        if self.phase == 'train':
             self.transform_x = T.Compose([
                 T.Resize(c.img_size, Image.ANTIALIAS),
                 T.RandomRotation(5),
@@ -66,7 +66,7 @@ class PlantVillageDataset(Dataset):
 
     def __len__(self):
         return len(self.x)
-    def get_random_samples_with_limit(self, x,y,mask, limit):
+    def get_random_samples_with_limit(self, x,y,mask, limit, seed=123):
         num_sample_total = len(x)
         limit = 100 if 100 < num_sample_total else num_sample_total
         ran_idx = np.random.randint(0, num_sample_total, limit)
@@ -77,56 +77,66 @@ class PlantVillageDataset(Dataset):
         # Cut off by the limit
         return x_trimmed, y_trimmed, m_trimmed
 
-    def load_dataset_folder(self):
-        phase = 'train' if self.is_train else 'test'
+    def take_random(self, data_pool, num, seed=123):
+        if num > len(data_pool):
+            return data_pool
+        ran_idx = np.random.randint(0, len(data_pool), num)
+        return [data_pool[idx] for idx in ran_idx]
+
+    def get_samples_file_path_of_class(self, class_name):
+        img_type_dir = os.path.join(self.dataset_path, class_name)
+        if not os.path.isdir(img_type_dir):
+            raise ValueError(f'no dir exist with name {img_type_dir}')
+        img_fpath_list = sorted([os.path.join(img_type_dir, f)
+                                    for f in os.listdir(img_type_dir)
+                                    if f.endswith('.JPG')])
+        return img_fpath_list
+
+    def check_validity(self, x, y):
+        assert len(x) > 0, 'Dataset should not be null (No sample)'
+        assert len(x) == len(y), 'number of x and y should be same'
+
+    def handle_add_samples(self, x, y, mask, samples, label):
+        x.extend(samples)
+        y.extend([label] * len(samples))
+        mask.extend([None] * len(samples))
+    # For creating test and validation dataset quickly
+    def create_mixed_class_dataset(self, x,y,mask,norm_pool, ano_pool,total, norm_ratio=0.5, seed=111):
+        norm_num =int(total * norm_ratio)
+        ano_num = total - norm_num
+        rand_norm_samples = self.take_random(norm_pool, norm_num, seed=11)
+        self.handle_add_samples(x,y,mask, rand_norm_samples, 0)
+        ran_ano_samples = self.take_random(ano_pool, ano_num, seed=12)
+        self.handle_add_samples(x,y,mask, ran_ano_samples, 1)
+    def load_dataset_folder(self, total_sample_num=500, split_ratios=(0.6, 0.2, 0.2), seed=123):
+        phase = self.phase
+        train_ratio, val_ratio, test_ratio = split_ratios
+        # HEALTHY GUYS
+        healthy_samples = self.get_samples_file_path_of_class(self.healthy_classname)
+        # DISEAED GUYS
+        diseased_samples = []
+        disased_classes = [c_type for c_type in self.classes_of_plant if c_type != self.healthy_classname]
+        for diased_type in disased_classes:
+            samples =  self.get_samples_file_path_of_class(diased_type)
+            diseased_samples.extend(samples)
+        #
+        SAMPLE_SIZE = min(total_sample_num, len(healthy_samples) + len(diseased_samples))
+        train_sample_num = SAMPLE_SIZE * train_ratio
+        val_sample_num = SAMPLE_SIZE * val_ratio
+        test_sample_num = SAMPLE_SIZE * test_ratio
+        #
         x, y, mask = [], [], []
 
         if phase == 'train':
             # load images
-            img_type_dir = os.path.join(self.dataset_path, self.healthy_classname)
-            if not os.path.isdir(img_type_dir):
-                raise ValueError(f'no dir exist with name {img_type_dir}')
-            img_fpath_list = sorted([os.path.join(img_type_dir, f)
-                                     for f in os.listdir(img_type_dir)
-                                     if f.endswith('.JPG')])
-            x.extend(img_fpath_list)
-
-            # load gt labels
-            y.extend([0] * len(img_fpath_list))
-            mask.extend([None] * len(img_fpath_list))
-            assert len(x) > 0, 'Dataset should not be null (No sample)'
-            assert len(x) == len(y), 'number of x and y should be same'
-            if self.c.local_test:
-                x,y, mask = self.get_random_samples_with_limit(x,y,mask,100)
-                return list(x), list(y), list(mask)
-            return list(x), list(y), list(mask)
-
+            rand_norm_samples = self.take_random(healthy_samples, train_sample_num)
+            self.handle_add_samples(x,y,mask, rand_norm_samples, 0)
+        elif phase== 'val':
+            self.create_mixed_class_dataset(x,y,mask,healthy_samples,diseased_samples,val_sample_num,0.6,seed=seed+33)
         elif phase == 'test':
-            img_types = sorted(self.classes_of_plant)
-            for img_type in img_types:
-                # load images
-                img_type_dir = os.path.join(self.dataset_path, img_type)
-                if not os.path.isdir(img_type_dir):
-                    continue
-                img_fpath_list = sorted([os.path.join(img_type_dir, f)
-                                        for f in os.listdir(img_type_dir)
-                                        if f.endswith('.JPG')])
-                x.extend(img_fpath_list)
-
-                # load gt labels
-                if img_type == self.healthy_classname:
-                    y.extend([0] * len(img_fpath_list))
-                    mask.extend([None] * len(img_fpath_list))
-                else:
-                    y.extend([1] * len(img_fpath_list))
-                    mask.extend([None] * len(img_fpath_list))
-                assert len(x) > 0, 'Dataset should not be null (No sample)'
-                assert len(x) == len(y), 'number of x and y should be same'
-
-            if self.c.local_test:
-                x, y, mask = self.get_random_samples_with_limit(x,y,mask,100)
-                assert (0 in y) and (1 in y), "There shuold be samples of both healthy and disease"
-                return list(x), list(y), list(mask)
-            return list(x), list(y), list(mask)
+            self.create_mixed_class_dataset(x,y,mask,healthy_samples,diseased_samples,test_sample_num,0.5,seed=seed+22)
+            assert (0 in y) and (1 in y), "There shuold be samples of both healthy and disease"
         else:
             raise KeyError("Unknown running phase (Must be train/test)")
+
+        return list(x), list(y), list(mask)
