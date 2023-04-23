@@ -349,7 +349,7 @@ def resnext101_32x8d(pretrained: bool = False, progress: bool = True, **kwargs: 
                    pretrained, progress, **kwargs)
 
 
-def wide_resnet50_2(pretrained: bool = False, progress: bool = True, **kwargs: Any) -> ResNet:
+def wide_resnet50_2(pretrained: bool = False, progress: bool = True, model_prepared_path='', **kwargs: Any) -> ResNet:
     r"""Wide ResNet-50-2 model from
     `"Wide Residual Networks" <https://arxiv.org/pdf/1605.07146.pdf>`_.
 
@@ -365,8 +365,8 @@ def wide_resnet50_2(pretrained: bool = False, progress: bool = True, **kwargs: A
     kwargs['width_per_group'] = 64 * 2
     block_type = Bottleneck
     layers = [3, 4, 6 ,3]
-    if 'model_prepared_dir' in kwargs:
-        pre_downloaded_model_path = kwargs['model_prepared_path']
+    if model_prepared_path:
+        pre_downloaded_model_path = model_prepared_path
         model = ResNet(Bottleneck, layers, **kwargs)
         model.load_state_dict(torch.load(pre_downloaded_model_path), strict=False)
         return model

@@ -106,7 +106,7 @@ def main(c):
         train(c)
     else:
         raise NotImplementedError('{} is not supported action-type!'.format(c.action_type))
-
+    print("TRAINING WITH CONFIG:", str(c))
 
 if __name__ == '__main__':
     c = get_args()
