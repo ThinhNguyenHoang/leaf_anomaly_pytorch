@@ -14,6 +14,12 @@ def get_args():
     parser.add_argument("--gcp", action='store_true', default=False, help='Run the training on Google Cloud Platform')
     # Condition for CFLOW
     parser.add_argument('--use-saliency', default=True, type=bool, metavar='C')
+    # Image processing
+    # examples: morph:blue|histogram:true <=> morpho on blue channel --> histogram equalization
+    parser.add_argument('--image_processing', default='no', type=str, metavar='C',
+                        help='Customizing how to use morphological processing (Or Not processing at all) possible value (no/morph_red/morph_green/morph_blue/morph_all)',
+                        )
+    #
     parser.add_argument('--no-mask', action='store_true',default=False, help='does data includes mask of anomaly')
     parser.add_argument('-cl', '--class-name', default='none', type=str, metavar='C',
                         help='class name for MVTec/STC (default: none)')
