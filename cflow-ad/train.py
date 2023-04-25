@@ -10,7 +10,7 @@ from utils import get_logp, rescale, Score_Observer, t2np, calculate_seg_pro_auc
 from custom_datasets import *
 from custom_models import *
 from torchvision import transforms
-
+import cv_utils
 OUT_DIR = './viz/'
 
 gamma = 0.0
@@ -39,6 +39,7 @@ def train_meta_epoch(c, epoch, loader,saliency_detector, encoder, decoders, opti
                 image, _, _ = next(iterator)
             # encoder prediction
             image = image.to(c.device)  # single scale
+            image = cv_utils.handle_image_processing(c,image)
             if c.use_saliency:
                 saliency_map = get_saliency_map(saliency_detector, image) # Bx1xHxW
             with torch.no_grad():
@@ -118,6 +119,7 @@ def test_meta_epoch(c, epoch,loader, encoder, decoders, pool_layers, N, saliency
             gt_mask_list.extend(t2np(mask))
             # data
             image = image.to(c.device) # single scale
+            image = cv_utils.handle_image_processing(c,image)
             _ = encoder(image)  # BxCxHxW
             if c.use_saliency:
                 saliency_map = get_saliency_map(saliency_detector, image)
