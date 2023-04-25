@@ -17,7 +17,7 @@ def get_args():
     # Image processing
     # examples: morph:blue|histogram:true <=> morpho on blue channel --> histogram equalization
     parser.add_argument('--image_processing', default='no', type=str, metavar='C',
-                        help='Customizing how to use morphological processing (Or Not processing at all) possible value (no/morph_red/morph_green/morph_blue/morph_all)',
+                        help='Customizing how to use morphological processing (Or Not processing at all) possible value (ex: split:red|hist_eq:true|morph:red|otsu:true)',
                         )
     #
     parser.add_argument('--no-mask', action='store_true',default=False, help='does data includes mask of anomaly')
