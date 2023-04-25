@@ -100,6 +100,7 @@ class PlantVillageDataset(Dataset):
         x.extend(samples)
         y.extend([label] * len(samples))
         mask.extend([None] * len(samples))
+
     # For creating test and validation dataset quickly
     def create_mixed_class_dataset(self, x,y,mask,norm_pool, ano_pool,total, norm_ratio=0.5, seed=111):
         norm_num =int(total * norm_ratio)
@@ -108,6 +109,7 @@ class PlantVillageDataset(Dataset):
         self.handle_add_samples(x,y,mask, rand_norm_samples, 0)
         ran_ano_samples = self.take_random(ano_pool, ano_num, seed=12)
         self.handle_add_samples(x,y,mask, ran_ano_samples, 1)
+
     def load_dataset_folder(self, total_sample_num=500, split_ratios=(0.6, 0.2, 0.2), seed=123):
         phase = self.phase
         train_ratio, val_ratio, test_ratio = split_ratios
@@ -121,12 +123,13 @@ class PlantVillageDataset(Dataset):
             diseased_samples.extend(samples)
         #
         SAMPLE_SIZE = min(total_sample_num, len(healthy_samples) + len(diseased_samples))
-        train_sample_num = SAMPLE_SIZE * train_ratio
-        val_sample_num = SAMPLE_SIZE * val_ratio
-        test_sample_num = SAMPLE_SIZE * test_ratio
+        train_sample_num = int(SAMPLE_SIZE * train_ratio)
+        val_sample_num = int(SAMPLE_SIZE * val_ratio)
+        test_sample_num = int(SAMPLE_SIZE * test_ratio)
         #
         x, y, mask = [], [], []
 
+        # LOAD DATA BY APPROPRIATE SPLITS
         if phase == 'train':
             # load images
             rand_norm_samples = self.take_random(healthy_samples, train_sample_num)

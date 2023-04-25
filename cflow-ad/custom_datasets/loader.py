@@ -23,6 +23,6 @@ def prepare_dataset(c):
     #
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=c.batch_size, shuffle=True, drop_last=True, **kwargs)
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=c.batch_size, shuffle=False, drop_last=False, **kwargs)
-    print('train/test/val loader length', len(train_loader.dataset), len(test_loader.dataset), '0' if val_dataset else len(val_dataset))
-    print('train/test/val loader batches', len(train_loader), len(test_loader), '0' if val_loader else len(val_loader))
+    print('train/test/val loader length', len(train_loader.dataset), len(test_loader.dataset), '0' if not val_dataset else len(val_dataset))
+    print('train/test/val loader batches', len(train_loader), len(test_loader), '0' if not val_loader else len(val_loader))
     return train_loader, test_loader, val_loader

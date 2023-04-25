@@ -196,7 +196,7 @@ def train(c):
     optimizer = torch.optim.Adam(params, lr=c.lr)
 
     # data preparation
-    train_loader, test_loader = prepare_dataset(c)
+    train_loader, test_loader, val_loader = prepare_dataset(c)
     N = 256  # hyperparameter that increases batch size for the decoder model by N
 
     # stats
@@ -244,7 +244,7 @@ def train(c):
         # --> Max likelihood (or near max) --> Normal points
         super_mask = score_mask.max() - score_mask # scalar - BxHxW
         # det_aur_roc
-        # calculate segmentation AUROC
+        # SEG_AUROC
         gt_mask = np.squeeze(np.asarray(gt_mask_list, dtype=bool), axis=1)
         if not c.no_mask: # If have mask in dataset, best weights if seg score is best
             seg_roc_auc = roc_auc_score(gt_mask.flatten(), super_mask.flatten())
@@ -263,7 +263,7 @@ def train(c):
         det_roc_auc = roc_auc_score(gt_label, score_label)
         save_weights_best_det_auc_roc = det_roc_obs.update(100.0*det_roc_auc, epoch)
 
-        # calculate detection AUROC
+        # DET_AUROC
         if c.no_mask and c.action_type != 'norm-test':
             # precision | accuracy | recall
             binary_score_label = rescale_and_score(score_label)
