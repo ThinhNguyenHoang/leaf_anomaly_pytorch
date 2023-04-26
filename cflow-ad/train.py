@@ -15,7 +15,7 @@ OUT_DIR = './viz/'
 
 gamma = 0.0
 theta = torch.nn.Sigmoid()
-log_theta = torch.nn.LogSigmoid()
+log_sigmoid = torch.nn.LogSigmoid()
 
 
 def train_meta_epoch(c, epoch, loader,saliency_detector, encoder, decoders, optimizer, pool_layers, N):
@@ -39,7 +39,8 @@ def train_meta_epoch(c, epoch, loader,saliency_detector, encoder, decoders, opti
                 image, _, _ = next(iterator)
             # encoder prediction
             image = image.to(c.device)  # single scale
-            image = cv_utils.handle_image_processing(c,image)
+            if c.image_processing:
+                image = cv_utils.handle_image_processing(c,image)
             if c.use_saliency:
                 saliency_map = get_saliency_map(saliency_detector, image) # Bx1xHxW
             with torch.no_grad():
@@ -80,7 +81,7 @@ def train_meta_epoch(c, epoch, loader,saliency_detector, encoder, decoders, opti
                     #
                     decoder_log_prob = get_logp(C, z, log_jac_det)
                     log_prob = decoder_log_prob / C  # likelihood per dim
-                    loss = -log_theta(log_prob)
+                    loss = -log_sigmoid(log_prob)
                     optimizer.zero_grad()
                     loss.mean().backward()
                     optimizer.step()
@@ -119,7 +120,8 @@ def test_meta_epoch(c, epoch,loader, encoder, decoders, pool_layers, N, saliency
             gt_mask_list.extend(t2np(mask))
             # data
             image = image.to(c.device) # single scale
-            image = cv_utils.handle_image_processing(c,image)
+            if c.image_processing:
+                image = cv_utils.handle_image_processing(c,image)
             _ = encoder(image)  # BxCxHxW
             if c.use_saliency:
                 saliency_map = get_saliency_map(saliency_detector, image)
@@ -166,7 +168,7 @@ def test_meta_epoch(c, epoch,loader, encoder, decoders, pool_layers, N, saliency
                     #
                     decoder_log_prob = get_logp(C, z, log_jac_det)
                     log_prob = decoder_log_prob / C  # likelihood per dim
-                    loss = -log_theta(log_prob)
+                    loss = -log_sigmoid(log_prob)
                     test_loss += t2np(loss.sum())
                     test_count += len(loss)
                     test_dist[l] = test_dist[l] + log_prob.detach().cpu().tolist()
