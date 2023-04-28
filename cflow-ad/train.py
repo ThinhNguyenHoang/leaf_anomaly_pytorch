@@ -48,9 +48,6 @@ def train_meta_epoch(c, epoch, loader,saliency_detector, encoder, decoders, opti
                 saliency_map = get_saliency_map(saliency_detector, image) # Bx1xHxW
             with torch.no_grad():
                 _ = encoder(image)
-            # train decoder
-            e_list = list()
-            c_list = list()
             for l, layer in enumerate(pool_layers):
                 e = activation[layer].detach()  # BxCxHxW
                 #
@@ -106,7 +103,7 @@ def train_meta_epoch(c, epoch, loader,saliency_detector, encoder, decoders, opti
     #
 
 
-def test_meta_epoch(c, epoch,loader, encoder, decoders, pool_layers, N, saliency_detector=None, detection_decoder=None):
+def test_meta_epoch(c, print_func, loader, encoder, decoders, pool_layers, N, saliency_detector=None, detection_decoder=None):
     # test
     if c.verbose:
         print('\nCompute loss and scores on test set:')
@@ -196,13 +193,70 @@ def test_meta_epoch(c, epoch,loader, encoder, decoders, pool_layers, N, saliency
     #
     fps = len(loader.dataset) / (time.time() - start)
     mean_test_loss = test_loss / test_count
-    if c.verbose:
-        print('Epoch: {:d} \t test_loss: {:.4f} and {:.2f} fps'.format(epoch, mean_test_loss, fps))
+    test_stat = {'mean_test_loss': mean_test_loss, 'fps': fps}
+    if c.verbose and print_func:
+        print_func(test_stat)
     #
     return height, width, image_list, test_dist, gt_label_list, gt_mask_list, detection_loss
 
-def eval_batch():
-    pass
+def eval_batch(c, stat_printer, test_loader, encoder, decoders, pool_layers, N, saliency_detector, detection_decoder, save_viz= False):
+    height, width, test_image_list, test_dist, gt_label_list, gt_mask_list, detection_score = test_meta_epoch(
+        c, stat_printer, test_loader, encoder, decoders, pool_layers, N, saliency_detector=saliency_detector, detection_decoder=detection_decoder)
+
+    # PxEHW
+    print('Heights/Widths', height, width)
+    test_map = [list() for p in pool_layers]
+    for l, p in enumerate(pool_layers):
+        test_norm = torch.tensor(test_dist[l], dtype=torch.double)  # EHWx1
+        test_norm-= torch.max(test_norm) # normalize likelihoods to (-Inf:0] by subtracting a constant
+        test_prob = torch.exp(test_norm) # convert to probs in range [0:1]
+        test_mask = test_prob.reshape(-1, height[l], width[l])
+        test_mask = test_prob.reshape(-1, height[l], width[l])
+        # upsample
+        test_map[l] = F.interpolate(test_mask.unsqueeze(1),
+            size=c.crp_size, mode='bilinear', align_corners=True).squeeze().numpy()
+
+    # EVALUATION METRICS
+    # score aggregation
+    score_map = np.zeros_like(test_map[0]) # BxHxW
+    for l, p in enumerate(pool_layers):
+        score_map += test_map[l]
+    score_mask = score_map
+    # MASK | M
+    # invert probs to anomaly scores
+    # --> Lower likelihood --> Higher score --> Abnormal points
+    # --> Max likelihood (or near max) --> Normal points
+    super_mask = score_mask.max() - score_mask # scalar - BxHxW
+    # det_aur_roc
+    # SEG_AUROC
+    gt_mask = np.squeeze(np.asarray(gt_mask_list, dtype=bool), axis=1)
+    if not c.no_mask: # If have mask in dataset, best weights if seg score is best
+        seg_roc_auc = roc_auc_score(gt_mask.flatten(), super_mask.flatten())
+        # calculate segmentation AUPRO
+        if c.pro:  # and (epoch % 4 == 0):  # AUPRO is expensive to compute
+            seg_pro_auc = calculate_seg_pro_auc(super_mask, gt_mask)
+
+    # LABEL | Y
+    score_label = np.max(super_mask, axis=(1, 2)) # score_label (B,) <-- max([B, H, W], axis=(1,2))
+    if detection_score:
+        score_label = get_anomaly_score(score_label, detection_score)
+    gt_label = np.asarray(gt_label_list, dtype=bool)
+    # auc_roc
+    det_roc_auc = roc_auc_score(gt_label, score_label)
+
+    # DET_AUROC
+    if c.no_mask and c.action_type != 'norm-test':
+        # precision | accuracy | recall
+        binary_score_label = rescale_and_score(score_label)
+        cf_matrix = confusion_matrix(gt_label, binary_score_label).ravel()
+        accuracy = accuracy_score(gt_label, binary_score_label)
+        precision = precision_score(gt_label, binary_score_label)
+        recall = recall_score(gt_label, binary_score_label)
+
+    # export visualuzations
+    if c.viz and save_viz:
+        save_visualization(c, test_image_list, super_mask, gt_mask, gt_label, score_label)
+    return accuracy, precision, recall, cf_matrix, seg_pro_auc, seg_roc_auc, det_roc_auc
 
 def train(c):
     run_date = datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S")
@@ -244,73 +298,29 @@ def train(c):
             train_meta_epoch(c, epoch,train_loader, saliency_detector,  encoder, decoders, optimizer, pool_layers, N)
         else:
             raise NotImplementedError('{} is not supported action type!'.format(c.action_type))
-        height, width, test_image_list, test_dist, gt_label_list, gt_mask_list, detection_score = test_meta_epoch(
-            c, epoch, test_loader, encoder, decoders, pool_layers, N, saliency_detector=saliency_detector)
-
-        # PxEHW
-        print('Heights/Widths', height, width)
-        test_map = [list() for p in pool_layers]
-        for l, p in enumerate(pool_layers):
-            test_norm = torch.tensor(test_dist[l], dtype=torch.double)  # EHWx1
-            test_norm-= torch.max(test_norm) # normalize likelihoods to (-Inf:0] by subtracting a constant
-            test_prob = torch.exp(test_norm) # convert to probs in range [0:1]
-            test_mask = test_prob.reshape(-1, height[l], width[l])
-            test_mask = test_prob.reshape(-1, height[l], width[l])
-            # upsample
-            test_map[l] = F.interpolate(test_mask.unsqueeze(1),
-                size=c.crp_size, mode='bilinear', align_corners=True).squeeze().numpy()
-
-        # EVALUATION METRICS
-        # score aggregation
-        score_map = np.zeros_like(test_map[0]) # BxHxW
-        for l, p in enumerate(pool_layers):
-            score_map += test_map[l]
-        score_mask = score_map
-        # MASK | M
-        # invert probs to anomaly scores
-        # --> Lower likelihood --> Higher score --> Abnormal points
-        # --> Max likelihood (or near max) --> Normal points
-        super_mask = score_mask.max() - score_mask # scalar - BxHxW
-        # det_aur_roc
-        # SEG_AUROC
-        gt_mask = np.squeeze(np.asarray(gt_mask_list, dtype=bool), axis=1)
-        if not c.no_mask: # If have mask in dataset, best weights if seg score is best
-            seg_roc_auc = roc_auc_score(gt_mask.flatten(), super_mask.flatten())
-            save_best_seg_weights = seg_roc_obs.update(100.0*seg_roc_auc, epoch)
-            if save_best_seg_weights and c.action_type != 'norm-test':
-                save_weights(c, encoder, decoders, c.model, run_date)  # avoid unnecessary saves
-            # calculate segmentation AUPRO
-            # from https://github.com/YoungGod/DFR:
-            if c.pro:  # and (epoch % 4 == 0):  # AUPRO is expensive to compute
-                calculate_seg_pro_auc(super_mask, gt_mask, epoch, seg_pro_obs)
-
-        # LABEL | Y
-        score_label = np.max(super_mask, axis=(1, 2)) # score_label (B,) <-- max([B, H, W], axis=(1,2))
-        if detection_score:
-            score_label = get_anomaly_score(score_label, detection_score)
-        gt_label = np.asarray(gt_label_list, dtype=bool)
-        # auc_roc
-        det_roc_auc = roc_auc_score(gt_label, score_label)
-        save_weights_best_det_auc_roc = det_roc_obs.update(100.0*det_roc_auc, epoch)
-
-        # DET_AUROC
-        if c.no_mask and c.action_type != 'norm-test':
-            # precision | accuracy | recall
-            tn, fp, fn, tp = confusion_matrix(gt_label, binary_score_label).ravel()
-            cm_str = f'TN:{tn} FP:{tn} FN:{fn} TP:{tp}'
-            binary_score_label = rescale_and_score(score_label)
-            accuracy = accuracy_score(gt_label, binary_score_label)
-            _ = accuracy_obs.update(accuracy *100, epoch)
-            precision = precision_score(gt_label, binary_score_label)
-            precision_best_weight = precision_obs.update(precision *100, epoch)
-            recall = recall_score(gt_label, binary_score_label)
-            _ = recall_obs.update(recall *100, epoch)
-            if save_weights_best_det_auc_roc:
+        def debug_epoch_printer(stats):
+            print(f'Epoch: {epoch}, Stats: {stats}')
+        # Validation BATCH
+        accuracy, precision, recall, cf_matrix, seg_pro_auc, seg_roc_auc, det_roc_auc = eval_batch(c, debug_epoch_printer, val_loader ,encoder, decoders, pool_layers, N, saliency_detector, detection_decoder)
+        # STATICTICS
+        tn, fp, fn, tp = cf_matrix
+        cm_str = f'TN:{tn} FP:{tn} FN:{fn} TP:{tp}'
+        accuracy_obs.update(accuracy, epoch, False)
+        precision_obs.update(precision, epoch, False)
+        recall_obs.update(recall, epoch, False)
+        # AUC
+        if c.pro:
+            seg_pro_obs.update(seg_pro_auc, epoch, False)
+        best_det_auc_roc = det_roc_obs.update(det_roc_auc, epoch)
+        best_seg_auc_roc = seg_roc_obs.update(seg_roc_auc, epoch)
+        if c.action_type != 'norm_test':
+            if c.no_mask:
+                save_weights(c,encoder, decoders, c.model, run_date, detection_decoder)
+            else:
                 save_weights(c,encoder, decoders, c.model, run_date)
 
-    #
+    # Run on unseen test set
+    accuracy, precision, recall, cf_matrix, seg_pro_auc, seg_roc_auc, det_roc_auc = eval_batch(c, debug_epoch_printer, test_loader ,encoder, decoders, pool_layers, N, saliency_detector, detection_decoder)
+    test_metrics = {'accuracy': accuracy, 'precision': precision, 'recall': recall, 'cf_matrix': cf_matrix,'seg_roc_auc':seg_roc_auc,'det_roc_auc':det_roc_auc}
     # save_results(det_roc_obs, seg_roc_obs, seg_pro_obs, c.model, c.class_name, run_date)
-    save_model_metrics(c, [accuracy_obs, precision_obs, recall_obs, det_roc_obs, seg_roc_obs],c.model, c.class_name, run_date, confusion_dict=cm_str)
-    # export visualuzations
-    if c.viz:
-        save_visualization(c, test_image_list, super_mask, gt_mask, gt_label, score_label)
+    save_model_metrics(c, [accuracy_obs, precision_obs, recall_obs, det_roc_obs, seg_roc_obs],c.model, c.class_name, run_date, confusion_dict=None,test_metrics=test_metrics)

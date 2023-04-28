@@ -53,7 +53,7 @@ BETA = 0.6
 def get_anomaly_score(seg_score, det_score):
     return BETA * det_score + (1 - BETA) * seg_score
 
-def calculate_seg_pro_auc(super_mask, gt_mask, epoch, seg_pro_obs):
+def calculate_seg_pro_auc(super_mask, gt_mask):
     max_step = 1000
     expect_fpr = 0.3  # default 30%
     max_th = super_mask.max()
@@ -118,4 +118,4 @@ def calculate_seg_pro_auc(super_mask, gt_mask, epoch, seg_pro_obs):
     fprs_selected = rescale(fprs_selected)  # rescale fpr [0,0.3] -> [0, 1]
     pros_mean_selected = pros_mean[idx]
     seg_pro_auc = auc(fprs_selected, pros_mean_selected)
-    _ = seg_pro_obs.update(100.0*seg_pro_auc, epoch)
+    return seg_pro_auc

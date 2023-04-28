@@ -12,7 +12,7 @@ except ImportError:
     from torch.utils.model_zoo import load_url as load_state_dict_from_url
 
 
-def save_model_metrics(c, metric_obs_list, model_name, class_name, run_date, confusion_dict=None):
+def save_model_metrics(c, metric_obs_list, model_name, class_name, run_date, confusion_dict=None, test_metrics=None):
     if not os.path.exists(c.result_dir):
         os.makedirs(c.result_dir)
     result = ''
@@ -20,6 +20,8 @@ def save_model_metrics(c, metric_obs_list, model_name, class_name, run_date, con
         result += f'{obs.name}: {obs.max_score} at epoch {obs.max_epoch}\n'
     if confusion_dict:
         result += str(confusion_dict)
+    if test_metrics:
+        result += f"TEST_STATS: {test_metrics}"
     fp = open(os.path.join(c.result_dir, f'{model_name}_{class_name}_{run_date}.txt'), "w")
     fp.write(result)
     fp.close()
@@ -36,11 +38,17 @@ def save_results(det_roc_obs, seg_roc_obs, seg_pro_obs, model_name, class_name, 
     fp.close()
 
 
-def save_weights(c, encoder, decoders, model_name, run_date):
+def save_weights(c, encoder, decoders, model_name, run_date, detection_decoder=None):
     if not os.path.exists(c.weight_dir):
         os.makedirs(c.weight_dir)
-    state = {'encoder_state_dict': encoder.state_dict(),
-             'decoder_state_dict': [decoder.state_dict() for decoder in decoders]}
+    if detection_decoder:
+        state = {'encoder_state_dict': encoder.state_dict(),
+                'decoder_state_dict': [decoder.state_dict() for decoder in decoders],
+                'detection_decoder_state_dict':detection_decoder.state_dict()}
+    else:
+        state = {'encoder_state_dict': encoder.state_dict(),
+                'decoder_state_dict': [decoder.state_dict() for decoder in decoders]}
+
     filename = '{}_{}.pt'.format(model_name, run_date)
     path = os.path.join(c.weight_dir, filename)
     torch.save(state, path)
