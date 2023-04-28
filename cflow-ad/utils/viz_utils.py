@@ -7,7 +7,8 @@ import matplotlib.pyplot as plt
 import matplotlib
 # from score_utils import *
 from sklearn.metrics import precision_recall_curve
-import cloud_utils
+from utils import cloud_utils
+
 OUT_DIR = './viz/'
 
 norm = matplotlib.colors.Normalize(vmin=0.0, vmax=255.0)

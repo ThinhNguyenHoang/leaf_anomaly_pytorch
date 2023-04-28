@@ -5,9 +5,9 @@ from skimage import morphology
 from skimage.segmentation import mark_boundaries
 import matplotlib.pyplot as plt
 import matplotlib
-from utils.score_utils import *
+from score_utils import *
 from sklearn.metrics import precision_recall_curve
-import utils.cloud_utils as cloud_utils
+import cloud_utils 
 OUT_DIR = './viz/'
 
 norm = matplotlib.colors.Normalize(vmin=0.0, vmax=255.0)
