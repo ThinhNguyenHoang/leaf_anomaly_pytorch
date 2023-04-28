@@ -135,9 +135,9 @@ class PlantVillageDataset(Dataset):
             rand_norm_samples = self.take_random(healthy_samples, train_sample_num)
             self.handle_add_samples(x,y,mask, rand_norm_samples, 0)
         elif phase== 'val':
-            self.create_mixed_class_dataset(x,y,mask,healthy_samples,diseased_samples,val_sample_num,0.6,seed=seed+33)
+            self.create_mixed_class_dataset(x,y,mask,healthy_samples,diseased_samples,val_sample_num,0.7,seed=seed+33)
         elif phase == 'test':
-            self.create_mixed_class_dataset(x,y,mask,healthy_samples,diseased_samples,test_sample_num,0.5,seed=seed+22)
+            self.create_mixed_class_dataset(x,y,mask,healthy_samples,diseased_samples,test_sample_num,0.7,seed=seed+22)
             assert (0 in y) and (1 in y), "There shuold be samples of both healthy and disease"
         else:
             raise KeyError("Unknown running phase (Must be train/test)")
