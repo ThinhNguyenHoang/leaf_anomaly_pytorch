@@ -12,12 +12,14 @@ except ImportError:
     from torch.utils.model_zoo import load_url as load_state_dict_from_url
 
 
-def save_model_metrics(c, metric_obs_list, model_name, class_name, run_date):
+def save_model_metrics(c, metric_obs_list, model_name, class_name, run_date, confusion_dict=None):
     if not os.path.exists(c.result_dir):
         os.makedirs(c.result_dir)
     result = ''
     for obs in metric_obs_list:
         result += f'{obs.name}: {obs.max_score} at epoch {obs.max_epoch}\n'
+    if confusion_dict:
+        result += str(confusion_dict)
     fp = open(os.path.join(c.result_dir, f'{model_name}_{class_name}_{run_date}.txt'), "w")
     fp.write(result)
     fp.close()

@@ -6,7 +6,7 @@ import torchvision
 # from timm.data import resolve_data_config
 from config import get_args
 from train import train
-import cloud_utils
+import utils.cloud_utils as cloud_utils
 
 print(f"Notebook runtime: {'GPU' if torch.cuda.is_available() else 'CPU'}")
 print(f"PyTorch version : {torch.__version__}")

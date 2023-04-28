@@ -5,7 +5,7 @@ from skimage import morphology
 from skimage.segmentation import mark_boundaries
 import matplotlib.pyplot as plt
 import matplotlib
-from utils import *
+# from score_utils import *
 from sklearn.metrics import precision_recall_curve
 import cloud_utils
 OUT_DIR = './viz/'
@@ -159,7 +159,6 @@ def save_visualization(c, test_image_list, super_masks, gt_masks, gt_labels, sco
     b = precision + recall
     f1 = np.divide(a, b, out=np.zeros_like(a), where=b != 0)
     seg_threshold = thresholds[np.argmax(f1)]
-    
     # Handle location
     out_dir = OUT_DIR
     if c.gcp:

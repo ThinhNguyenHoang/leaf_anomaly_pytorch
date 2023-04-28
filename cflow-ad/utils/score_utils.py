@@ -49,6 +49,10 @@ def rescale_and_score(x):
     scaled_x = rescale(x)
     return np.where(scaled_x > 0.5, True, False)
 
+BETA = 0.6
+def get_anomaly_score(seg_score, det_score):
+    return BETA * det_score + (1 - BETA) * seg_score
+
 def calculate_seg_pro_auc(super_mask, gt_mask, epoch, seg_pro_obs):
     max_step = 1000
     expect_fpr = 0.3  # default 30%

@@ -2,15 +2,15 @@ import os, time
 import numpy as np
 import torch
 import torch.nn.functional as F
-from sklearn.metrics import roc_auc_score, accuracy_score, precision_score, recall_score
+from sklearn.metrics import roc_auc_score, accuracy_score, precision_score, recall_score, confusion_matrix
 from tqdm import tqdm
-from visualize import *
+from utils.viz_utils import *
 from model import load_decoder_arch, load_encoder_arch, positionalencoding2d, activation, load_saliency_detector_arch, get_saliency_map
-from utils import get_logp, rescale, Score_Observer, t2np, calculate_seg_pro_auc
+from utils.score_utils import get_logp, rescale, Score_Observer, t2np, calculate_seg_pro_auc, get_anomaly_score, rescale_and_score
 from custom_datasets import *
 from custom_models import *
 from torchvision import transforms
-import cv_utils
+import utils.cv_utils as cv_utils
 OUT_DIR = './viz/'
 
 gamma = 0.0
@@ -18,10 +18,13 @@ theta = torch.nn.Sigmoid()
 log_sigmoid = torch.nn.LogSigmoid()
 
 
-def train_meta_epoch(c, epoch, loader,saliency_detector, encoder, decoders, optimizer, pool_layers, N):
+def train_meta_epoch(c, epoch, loader,saliency_detector, encoder, decoders, optimizer, pool_layers, N, detection_decoder=None):
     P = c.condition_vec
     L = c.pool_layers
     decoders = [decoder.train() for decoder in decoders]
+    # Decoder specificaly for classification
+    if detection_decoder:
+        detection_decoder = detection_decoder.train()
     adjust_learning_rate(c, optimizer, epoch)
     I = len(loader)
     iterator = iter(loader)
@@ -87,6 +90,15 @@ def train_meta_epoch(c, epoch, loader,saliency_detector, encoder, decoders, opti
                     optimizer.step()
                     train_loss += t2np(loss.sum())
                     train_count += len(loss)
+            #
+            if detection_decoder:
+                bottle_neck_feature_map = e[-1].detach()
+                z_i, log_jac_det_i = detection_decoder(bottle_neck_feature_map, [condition_vector,])
+                decoder_log_prob = get_logp(C, z_i, log_jac_det_i)
+                log_prob = decoder_log_prob / C
+                loss = -log_sigmoid(log_prob)
+                optimizer.zero_grad()
+                loss.mean().backward()
         #
         mean_train_loss = train_loss / train_count
         if c.verbose:
@@ -94,13 +106,15 @@ def train_meta_epoch(c, epoch, loader,saliency_detector, encoder, decoders, opti
     #
 
 
-def test_meta_epoch(c, epoch,loader, encoder, decoders, pool_layers, N, saliency_detector=None):
+def test_meta_epoch(c, epoch,loader, encoder, decoders, pool_layers, N, saliency_detector=None, detection_decoder=None):
     # test
     if c.verbose:
         print('\nCompute loss and scores on test set:')
     #
     P = c.condition_vec
     decoders = [decoder.eval() for decoder in decoders]
+    if detection_decoder:
+        detection_decoder.eval()
     height = list()
     width = list()
     image_list = list()
@@ -109,6 +123,7 @@ def test_meta_epoch(c, epoch,loader, encoder, decoders, pool_layers, N, saliency
     test_dist = [list() for layer in pool_layers]
     test_loss = 0.0
     test_count = 0
+    detection_loss = None
     start = time.time()
     with torch.no_grad():
         for i, (image, label, mask) in enumerate(tqdm(loader, disable=c.hide_tqdm_bar)):
@@ -172,15 +187,22 @@ def test_meta_epoch(c, epoch,loader, encoder, decoders, pool_layers, N, saliency
                     test_loss += t2np(loss.sum())
                     test_count += len(loss)
                     test_dist[l] = test_dist[l] + log_prob.detach().cpu().tolist()
+        if detection_decoder:
+            bottle_neck_feature_map = e[-1].detach()
+            z_i, log_jac_det_i = detection_decoder(bottle_neck_feature_map, [condition_vector,])
+            decoder_log_prob = get_logp(C, z_i, log_jac_det_i)
+            log_prob = decoder_log_prob / C
+            detection_loss = -log_sigmoid(log_prob)
     #
     fps = len(loader.dataset) / (time.time() - start)
     mean_test_loss = test_loss / test_count
     if c.verbose:
         print('Epoch: {:d} \t test_loss: {:.4f} and {:.2f} fps'.format(epoch, mean_test_loss, fps))
     #
-    return height, width, image_list, test_dist, gt_label_list, gt_mask_list
+    return height, width, image_list, test_dist, gt_label_list, gt_mask_list, detection_loss
 
-
+def eval_batch():
+    pass
 
 def train(c):
     run_date = datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S")
@@ -193,6 +215,8 @@ def train(c):
     decoders = [load_decoder_arch(c, pool_dim) for pool_dim in pool_dims]
     decoders = [decoder.to(c.device) for decoder in decoders]
 
+    # Test classification decoder
+    detection_decoder = load_decoder_arch(c,pool_dims[-1])
     # optimizer
     params = list(decoders[0].parameters())
     for l in range(1, L):
@@ -220,7 +244,7 @@ def train(c):
             train_meta_epoch(c, epoch,train_loader, saliency_detector,  encoder, decoders, optimizer, pool_layers, N)
         else:
             raise NotImplementedError('{} is not supported action type!'.format(c.action_type))
-        height, width, test_image_list, test_dist, gt_label_list, gt_mask_list = test_meta_epoch(
+        height, width, test_image_list, test_dist, gt_label_list, gt_mask_list, detection_score = test_meta_epoch(
             c, epoch, test_loader, encoder, decoders, pool_layers, N, saliency_detector=saliency_detector)
 
         # PxEHW
@@ -262,6 +286,8 @@ def train(c):
 
         # LABEL | Y
         score_label = np.max(super_mask, axis=(1, 2)) # score_label (B,) <-- max([B, H, W], axis=(1,2))
+        if detection_score:
+            score_label = get_anomaly_score(score_label, detection_score)
         gt_label = np.asarray(gt_label_list, dtype=bool)
         # auc_roc
         det_roc_auc = roc_auc_score(gt_label, score_label)
@@ -270,6 +296,8 @@ def train(c):
         # DET_AUROC
         if c.no_mask and c.action_type != 'norm-test':
             # precision | accuracy | recall
+            tn, fp, fn, tp = confusion_matrix(gt_label, binary_score_label).ravel()
+            cm_str = f'TN:{tn} FP:{tn} FN:{fn} TP:{tp}'
             binary_score_label = rescale_and_score(score_label)
             accuracy = accuracy_score(gt_label, binary_score_label)
             _ = accuracy_obs.update(accuracy *100, epoch)
@@ -282,7 +310,7 @@ def train(c):
 
     #
     # save_results(det_roc_obs, seg_roc_obs, seg_pro_obs, c.model, c.class_name, run_date)
-    save_model_metrics(c, [accuracy_obs, precision_obs, recall_obs, det_roc_obs, seg_roc_obs],c.model, c.class_name, run_date)
+    save_model_metrics(c, [accuracy_obs, precision_obs, recall_obs, det_roc_obs, seg_roc_obs],c.model, c.class_name, run_date, confusion_dict=cm_str)
     # export visualuzations
     if c.viz:
         save_visualization(c, test_image_list, super_mask, gt_mask, gt_label, score_label)

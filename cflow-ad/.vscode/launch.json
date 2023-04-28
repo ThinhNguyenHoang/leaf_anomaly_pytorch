@@ -43,7 +43,7 @@
                 "--action-type",
                 "norm-test",
                 "--checkpoint",
-                "weights/plant_village_saliency_wide_resnet50_2_freia-cflow_pl3_cb8_inp256_run0_Pepper_2023-04-19-18:28:31.pt",
+                "weights/leaf_anomaly_det_weights_plant_village_saliency_wide_resnet50_2_freia-cflow_pl3_cb8_inp256_run0_Pepper_2023-04-22-19_29_13.pt",
                 "-bs",
                 "4",
                 "-enc",
