@@ -6,7 +6,7 @@ from sklearn.metrics import roc_auc_score, accuracy_score, precision_score, reca
 from tqdm import tqdm
 from utils.viz_utils import *
 from model import load_decoder_arch, load_encoder_arch, positionalencoding2d, activation, load_saliency_detector_arch, get_saliency_map
-from utils.score_utils import get_logp, rescale, Score_Observer, t2np, calculate_seg_pro_auc, get_anomaly_score, rescale_and_score
+from utils.score_utils import get_logp, rescale, Score_Observer, t2np, calculate_seg_pro_auc, get_anomaly_score, rescale_and_score, score_sigmoid, find_best_thresh_hold_sig, weight_precision_recall
 from custom_datasets import *
 from custom_models import *
 from torchvision import transforms
@@ -196,7 +196,7 @@ def test_meta_epoch(c, print_func, loader, encoder, decoders, pool_layers, N, sa
     #
     return height, width, image_list, test_dist, gt_label_list, gt_mask_list, detection_loss
 
-def eval_batch(c, stat_printer, test_loader, encoder, decoders, pool_layers, N, saliency_detector, detection_decoder, save_viz= False):
+def eval_batch(c, stat_printer, test_loader, encoder, decoders, pool_layers, N, saliency_detector, detection_decoder, save_viz= False, pre_threshold=None):
     height, width, test_image_list, test_dist, gt_label_list, gt_mask_list, detection_score = test_meta_epoch(
         c, stat_printer, test_loader, encoder, decoders, pool_layers, N, saliency_detector=saliency_detector, detection_decoder=detection_decoder)
     accuracy, precision, recall, cf_matrix, seg_pro_auc, seg_roc_auc, det_roc_auc = (0,0,0,0,0,0,0)
@@ -245,7 +245,11 @@ def eval_batch(c, stat_printer, test_loader, encoder, decoders, pool_layers, N, 
     # DET_AUROC
     if c.no_mask and c.action_type != 'norm-test':
         # precision | accuracy | recall
-        binary_score_label = rescale_and_score(score_label)
+        thresh_hold = pre_threshold
+        if not thresh_hold:
+            thresh_hold = find_best_thresh_hold_sig(gt_label, score_label)
+        scaled_probs = score_sigmoid(score_label)
+        binary_score_label = np.where(scaled_probs > thresh_hold, True, False)
         cf_matrix = confusion_matrix(gt_label, binary_score_label).ravel()
         accuracy = accuracy_score(gt_label, binary_score_label)
         precision = precision_score(gt_label, binary_score_label)
@@ -254,7 +258,7 @@ def eval_batch(c, stat_printer, test_loader, encoder, decoders, pool_layers, N, 
     # export visualuzations
     if c.viz and save_viz:
         save_visualization(c, test_image_list, super_mask, gt_mask, gt_label, score_label)
-    return accuracy, precision, recall, cf_matrix, seg_pro_auc, seg_roc_auc, det_roc_auc
+    return thresh_hold, accuracy, precision, recall, cf_matrix, seg_pro_auc, seg_roc_auc, det_roc_auc
 
 def train(c):
     run_date = datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S")
@@ -289,6 +293,10 @@ def train(c):
     accuracy_obs = Score_Observer('ACCURACY')
     precision_obs = Score_Observer('PRECISION')
     recall_obs = Score_Observer('RECALL')
+    #
+    meta_score = 0.0
+    meta_thresh_hold = 0.0
+
     if c.action_type == 'norm-test':
         c.meta_epochs = 1
     for epoch in range(c.meta_epochs):
@@ -302,26 +310,26 @@ def train(c):
         def debug_epoch_printer(stats):
             print(f'Epoch: {epoch}, Stats: {stats}')
         # Validation BATCH
-        accuracy, precision, recall, cf_matrix, seg_pro_auc, seg_roc_auc, det_roc_auc = eval_batch(c, debug_epoch_printer, val_loader ,encoder, decoders, pool_layers, N, saliency_detector, detection_decoder)
+        thresh_hold, accuracy, precision, recall, cf_matrix, seg_pro_auc, seg_roc_auc, det_roc_auc = eval_batch(c, debug_epoch_printer, val_loader ,encoder, decoders, pool_layers, N, saliency_detector, detection_decoder)
         # STATICTICS
         tn, fp, fn, tp = cf_matrix
         cm_str = f'TN:{tn} FP:{tn} FN:{fn} TP:{tp}'
-        accuracy_obs.update(accuracy, epoch, False)
-        precision_obs.update(precision, epoch, False)
-        recall_obs.update(recall, epoch, False)
+        best_acc = accuracy_obs.update(accuracy, epoch, False)
+        best_prec = precision_obs.update(precision, epoch, False)
+        best_rec = recall_obs.update(recall, epoch, False)
         # AUC
         if c.pro:
             seg_pro_obs.update(seg_pro_auc, epoch, False)
         best_det_auc_roc = det_roc_obs.update(det_roc_auc, epoch)
         best_seg_auc_roc = seg_roc_obs.update(seg_roc_auc, epoch)
-        if c.action_type != 'norm_test':
-            if c.no_mask:
-                save_weights(c,encoder, decoders, c.model, run_date, detection_decoder)
-            else:
-                save_weights(c,encoder, decoders, c.model, run_date)
+        score = weight_precision_recall(precision, recall)
+        if c.action_type != 'norm_test' and score > meta_score:
+            meta_score = score
+            meta_thresh_hold = thresh_hold
+            save_weights(c,encoder, decoders, c.model, run_date, detection_decoder)
 
     # Run on unseen test set
-    accuracy, precision, recall, cf_matrix, seg_pro_auc, seg_roc_auc, det_roc_auc = eval_batch(c, debug_epoch_printer, test_loader ,encoder, decoders, pool_layers, N, saliency_detector, detection_decoder)
-    test_metrics = {'accuracy': accuracy, 'precision': precision, 'recall': recall, 'cf_matrix': cf_matrix,'seg_roc_auc':seg_roc_auc,'det_roc_auc':det_roc_auc}
+    thresh_hold, accuracy, precision, recall, cf_matrix, seg_pro_auc, seg_roc_auc, det_roc_auc = eval_batch(c, debug_epoch_printer, test_loader ,encoder, decoders, pool_layers, N, saliency_detector, detection_decoder, pre_threshold=meta_thresh_hold)
+    test_metrics = {'accuracy': accuracy, 'precision': precision, 'recall': recall, 'cf_matrix': cf_matrix,'seg_roc_auc':seg_roc_auc,'det_roc_auc':det_roc_auc, 'thresh_hold': meta_thresh_hold}
     # save_results(det_roc_obs, seg_roc_obs, seg_pro_obs, c.model, c.class_name, run_date)
     save_model_metrics(c, [accuracy_obs, precision_obs, recall_obs, det_roc_obs, seg_roc_obs],c.model, c.class_name, run_date, confusion_dict=None,test_metrics=test_metrics)

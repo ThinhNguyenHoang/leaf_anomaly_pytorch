@@ -1,9 +1,9 @@
 import numpy as np
 import torch
 import torch.nn.functional as F
-from sklearn.metrics import auc
+from sklearn.metrics import auc, precision_recall_curve
 from skimage.measure import label, regionprops
-
+import math
 np.random.seed(0)
 _GCONST_ = -0.9189385332046727 # ln(sqrt(2*pi))
 
@@ -41,18 +41,31 @@ def get_logp(C, z, logdet_J):
     logp = C * _GCONST_ - 0.5*torch.sum(z**2, 1) + logdet_J
     return logp
 
+def score_sigmoid(x):
+    return 1 / (1 + np.exp(-x))
 
 def rescale(x):
     return (x - x.min()) / (x.max() - x.min())
 
-def rescale_and_score(x):
+def rescale_and_score(x, thresh_hold=0.5):
     scaled_x = rescale(x)
-    return np.where(scaled_x > 0.5, True, False)
+    return np.where(scaled_x > thresh_hold, True, False)
 
 BETA = 0.6
 def get_anomaly_score(seg_score, det_score):
     return BETA * det_score + (1 - BETA) * seg_score
 
+PRED_WEIGHT = 8
+REC_WEIGHT = 7
+def weight_precision_recall(precision, recall):
+    return PRED_WEIGHT * precision + REC_WEIGHT * recall
+def find_best_thresh_hold_sig(y_true, score_label):
+    scaled_probs = score_sigmoid(score_label)
+    precisions, recalls, thresh_holds = precision_recall_curve(y_true, scaled_probs)
+    weighted_score = precisions * PRED_WEIGHT + recalls * REC_WEIGHT
+    thr_idx = np.argmax(weighted_score)
+    thresh_hold = thresh_holds[thr_idx]
+    return thresh_hold
 def calculate_seg_pro_auc(super_mask, gt_mask):
     max_step = 1000
     expect_fpr = 0.3  # default 30%
