@@ -16,6 +16,8 @@
                 "4",
                 "-enc",
                 "wide_resnet50_2",
+                "--sub-arch",
+                "saliency"
                 "--pro",
                 "-inp",
                 "256",

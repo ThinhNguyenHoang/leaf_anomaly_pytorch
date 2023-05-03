@@ -12,8 +12,6 @@ def get_args():
                         help='file with saved checkpoint')
     # Handle running in GCS
     parser.add_argument("--gcp", action='store_true', default=False, help='Run the training on Google Cloud Platform')
-    # Condition for CFLOW
-    parser.add_argument('--use-saliency', default=True, type=bool, metavar='C')
     # Image processing
     # examples: morph:blue|histogram:true <=> morpho on blue channel --> histogram equalization
     parser.add_argument('--image_processing', type=str, metavar='C',
@@ -34,6 +32,8 @@ def get_args():
                         help='number of layers used in NF model (default: 3)')
     parser.add_argument('-cb', '--coupling-blocks', default=8, type=int, metavar='L',
                         help='number of layers used in NF model (default: 8)')
+    parser.add_argument('--sub-arch', default='', type=str, metavar='A',
+                        help='suplemental arch. ex: (saliency|detection)')
     # Run time settings
     parser.add_argument('-run', '--run-name', default=0, type=int, metavar='C',
                         help='name of the run (default: 0)')

@@ -44,7 +44,7 @@ def train_meta_epoch(c, epoch, loader,saliency_detector, encoder, decoders, opti
             image = image.to(c.device)  # single scale
             if c.image_processing:
                 image = cv_utils.handle_image_processing(c,image)
-            if c.use_saliency:
+            if 'saliency' in c.sub_arch:
                 saliency_map = get_saliency_map(saliency_detector, image) # Bx1xHxW
             with torch.no_grad():
                 _ = encoder(image)
@@ -57,7 +57,7 @@ def train_meta_epoch(c, epoch, loader,saliency_detector, encoder, decoders, opti
                 # POSITIONAL ENCODING
                 positional_encoding = positionalencoding2d(P, H, W).to(c.device).unsqueeze(0).repeat(B, 1, 1, 1) # BxPxHxW
                 condition_vector = positional_encoding
-                if c.use_saliency:
+                if 'saliency' in c.sub_arch:
                     saliency_resized = transforms.Resize([H, W])(saliency_map).unsqueeze(1)
                     condition_vector = torch.mul(saliency_resized, positional_encoding)
                 # BxPxHxW -----> BxPx(HW)---------> Bx(HW)xP ----> BHWxP
@@ -104,9 +104,6 @@ def train_meta_epoch(c, epoch, loader,saliency_detector, encoder, decoders, opti
 
 
 def test_meta_epoch(c, print_func, loader, encoder, decoders, pool_layers, N, saliency_detector=None, detection_decoder=None):
-    # test
-    if c.verbose:
-        print('\nCompute loss and scores on test set:')
     #
     P = c.condition_vec
     decoders = [decoder.eval() for decoder in decoders]
@@ -135,7 +132,7 @@ def test_meta_epoch(c, print_func, loader, encoder, decoders, pool_layers, N, sa
             if c.image_processing:
                 image = cv_utils.handle_image_processing(c,image)
             _ = encoder(image)  # BxCxHxW
-            if c.use_saliency:
+            if 'saliency' in c.sub_arch:
                 saliency_map = get_saliency_map(saliency_detector, image)
             for l, layer in enumerate(pool_layers):
                 e = activation[layer]  # BxCxHxW
@@ -152,7 +149,7 @@ def test_meta_epoch(c, print_func, loader, encoder, decoders, pool_layers, N, sa
                 # Positional encoding
                 p = positionalencoding2d(P, H, W).to(c.device).unsqueeze(0).repeat(B, 1, 1, 1)
                 condition_vector = p
-                if c.use_saliency:
+                if 'saliency' in c.sub_arch:
                     saliency_resized = transforms.Resize([H, W])(saliency_map).unsqueeze(1)
                     condition_vector = torch.mul(condition_vector, saliency_resized)
                 condition_vector_reshaped = condition_vector.reshape(B, P, S).transpose(1, 2).reshape(E, P)  # BHWxP
@@ -184,12 +181,12 @@ def test_meta_epoch(c, print_func, loader, encoder, decoders, pool_layers, N, sa
                     test_loss += t2np(loss.sum())
                     test_count += len(loss)
                     test_dist[l] = test_dist[l] + log_prob.detach().cpu().tolist()
-        if detection_decoder:
-            bottle_neck_feature_map = e[-1].detach()
-            z_i, log_jac_det_i = detection_decoder(bottle_neck_feature_map, [condition_vector,])
-            decoder_log_prob = get_logp(C, z_i, log_jac_det_i)
-            log_prob = decoder_log_prob / C
-            detection_loss = -log_sigmoid(log_prob)
+                if detection_decoder:
+                    bottle_neck_feature_map = e[-1].detach()
+                    z_i, log_jac_det_i = detection_decoder(bottle_neck_feature_map, [condition_vector,])
+                    decoder_log_prob = get_logp(C, z_i, log_jac_det_i)
+                    log_prob = decoder_log_prob / C
+                    detection_loss = -log_sigmoid(log_prob)
     #
     fps = len(loader.dataset) / (time.time() - start)
     mean_test_loss = test_loss / test_count
@@ -202,6 +199,7 @@ def test_meta_epoch(c, print_func, loader, encoder, decoders, pool_layers, N, sa
 def eval_batch(c, stat_printer, test_loader, encoder, decoders, pool_layers, N, saliency_detector, detection_decoder, save_viz= False):
     height, width, test_image_list, test_dist, gt_label_list, gt_mask_list, detection_score = test_meta_epoch(
         c, stat_printer, test_loader, encoder, decoders, pool_layers, N, saliency_detector=saliency_detector, detection_decoder=detection_decoder)
+    accuracy, precision, recall, cf_matrix, seg_pro_auc, seg_roc_auc, det_roc_auc = (0,0,0,0,0,0,0)
 
     # PxEHW
     print('Heights/Widths', height, width)
@@ -270,7 +268,10 @@ def train(c):
     decoders = [decoder.to(c.device) for decoder in decoders]
 
     # Test classification decoder
-    detection_decoder = load_decoder_arch(c,pool_dims[-1])
+    detection_decoder = None
+    if 'detection_decoder' in c.sub_arch:
+        print("======Using additional detection decoder========")
+        detection_decoder = load_decoder_arch(c,pool_dims[-1])
     # optimizer
     params = list(decoders[0].parameters())
     for l in range(1, L):
@@ -292,10 +293,10 @@ def train(c):
         c.meta_epochs = 1
     for epoch in range(c.meta_epochs):
         if c.action_type == 'norm-test' and c.checkpoint:
-            load_weights(encoder, decoders, c.checkpoint)
+            load_weights(c, encoder, decoders, detection_decoder, c.checkpoint)
         elif c.action_type == 'norm-train':
             print('Train meta epoch: {}'.format(epoch))
-            train_meta_epoch(c, epoch,train_loader, saliency_detector,  encoder, decoders, optimizer, pool_layers, N)
+            train_meta_epoch(c, epoch,train_loader, saliency_detector,  encoder, decoders, optimizer, pool_layers, N, detection_decoder)
         else:
             raise NotImplementedError('{} is not supported action type!'.format(c.action_type))
         def debug_epoch_printer(stats):

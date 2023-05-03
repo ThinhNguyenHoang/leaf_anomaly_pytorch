@@ -41,7 +41,8 @@ def handle_weight_dir_path(c):
 
 # Make sure the submodels (resnet, u2net) load the correct saved page for evalation
 def handle_submodel_weight_paths(c):
-    if c.use_saliency:
+    if 'saliency' in c.sub_arch:
+        print("======== Using Saliency Detector ================")
         c.u2net_weight_path = 'custom_models/u2net/saved_models/u2net/u2net.pth'
     if c.gcp:
         # load from buckets
@@ -50,7 +51,7 @@ def handle_submodel_weight_paths(c):
 def main(c):
     # model
     if c.action_type in ['norm-train', 'norm-test']:
-        c.model = f"{c.dataset}{'_saliency' if c.use_saliency else ''}_{c.enc_arch}_{c.dec_arch}_pl{c.pool_layers}_cb{c.coupling_blocks}_inp{c.input_size}_run{c.run_name}_{c.class_name}"
+        c.model = f"{c.dataset}_{c.sub_arch}_{c.enc_arch}_{c.dec_arch}_pl{c.pool_layers}_cb{c.coupling_blocks}_inp{c.input_size}_run{c.run_name}_{c.class_name}"
     else:
         raise NotImplementedError('{} is not supported action-type!'.format(c.action_type))
     # image

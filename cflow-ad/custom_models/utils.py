@@ -55,9 +55,12 @@ def save_weights(c, encoder, decoders, model_name, run_date, detection_decoder=N
     print('Saving weights to {}'.format(filename))
 
 
-def load_weights(encoder, decoders, filename):
+def load_weights(c,encoder, decoders, detection_decoder, filename):
     path = os.path.join(filename)
     state = torch.load(path)
+    if ('detection_decoder' in c.sub_arch) and detection_decoder:
+        encoder.load_state_dict(state['encoder_state_dict'], strict=False)
+        detection_decoder.load_state_dict(detection_decoder.state_dict())
     encoder.load_state_dict(state['encoder_state_dict'], strict=False)
     decoders = [decoder.load_state_dict(state, strict=False) for decoder, state in zip(decoders, state['decoder_state_dict'])]
     print('Loading weights from {}'.format(filename))

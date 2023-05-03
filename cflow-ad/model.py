@@ -34,7 +34,7 @@ def positionalencoding2d(D, H, W):
 def load_saliency_detector_arch(c):
     # u2net_dir = os.path.join(os.getcwd(),'custom_models' ,'u2net')
     u2net_weight_path = c.u2net_weight_path
-    if c.use_saliency and not u2net_weight_path:
+    if 'saliency' in c.sub_arch and not u2net_weight_path:
         raise RuntimeError('Cannot use saliency without path for saved weights of resnet model')
     return u2net_test.load_u2net_eval(u2net_weight_path)
 def get_saliency_map(detector, input_img):
