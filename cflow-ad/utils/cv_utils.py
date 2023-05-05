@@ -1,5 +1,6 @@
 import cv2 as cv
-
+import numpy as np
+from utils import score_utils
 
 def histogram_equalization(img):
     image_ycrcb = cv.cvtColor(img, cv.COLOR_RGB2YCR_CB)
@@ -52,8 +53,6 @@ def denoise_color_image(image):
 
 
 def handle_processing_step(c, img, process_type, process_value):
-    if not img:
-        raise RuntimeError("Can't process null image")
     res = img
     if process_type == 'denoise':
         if process_value == 'true':
@@ -68,9 +67,9 @@ def handle_processing_step(c, img, process_type, process_value):
         c_b, c_g, c_r = split_channel(res)
         if process_value == 'red':
             res = perform_morphology(c_r)
-        if process_value == 'green':
+        elif process_value == 'green':
             res = perform_morphology(c_g)
-        if process_value == 'blue':
+        elif process_value == 'blue':
             res = perform_morphology(c_b)
     if process_type == 'otsu':
         if process_value == 'true':
@@ -79,12 +78,25 @@ def handle_processing_step(c, img, process_type, process_value):
 
 def handle_image_processing(c, img):
     # Image processing pipeline based on the config object
-    res = img
+    B,C,H,W = img.shape
+    res_list = np.array([]) 
+    img = score_utils.t2np(img)
     processing_stage_string = c.image_processing
     if not processing_stage_string:
-        return res
+        return img
     stages = processing_stage_string.split('|')
+    # Batch processing
     for stage in stages:
         p_type, p_value = stage.split(':')
-        res =handle_processing_step(c, img, p_type, p_value)
-    return res
+        for i in range(B):
+            im = img[i]
+            im = im.reshape(H,W,C)
+            im_res =handle_processing_step(c, im, p_type, p_value)
+            if len(im_res.shape) == 2:
+                im_res = cv.cvtColor(im_res, cv.COLOR_GRAY2RGB)
+            else:
+                im_res = im_res.reshape(C,H,W)
+            res_list = np.append(res_list, im_res)
+    res_list = score_utils.np2t(res_list)
+    res_list = res_list.reshape(B,C,H,W)
+    return res_list

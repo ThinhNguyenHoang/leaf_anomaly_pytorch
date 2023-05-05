@@ -40,10 +40,12 @@ def train_meta_epoch(c, epoch, loader,saliency_detector, encoder, decoders, opti
             except StopIteration:
                 iterator = iter(loader)
                 image, _, _ = next(iterator)
-            # encoder prediction
-            image = image.to(c.device)  # single scale
             if c.image_processing:
                 image = cv_utils.handle_image_processing(c,image)
+                image = image.type(torch.cuda.FloatTensor).to(c.device)  # single scale
+            # encoder prediction
+            else:
+                image = image.to(c.device)  # single scale
             if 'saliency' in c.sub_arch:
                 saliency_map = get_saliency_map(saliency_detector, image) # Bx1xHxW
             with torch.no_grad():
@@ -127,10 +129,12 @@ def test_meta_epoch(c, print_func, loader, encoder, decoders, pool_layers, N, sa
             # ground_truth label list
             gt_label_list.extend(t2np(label))
             gt_mask_list.extend(t2np(mask))
-            # data
-            image = image.to(c.device) # single scale
             if c.image_processing:
                 image = cv_utils.handle_image_processing(c,image)
+                image = image.type(torch.cuda.FloatTensor).to(c.device)  # single scale
+            # encoder prediction
+            else:
+                image = image.to(c.device)  # single scale
             _ = encoder(image)  # BxCxHxW
             if 'saliency' in c.sub_arch:
                 saliency_map = get_saliency_map(saliency_detector, image)
@@ -323,7 +327,8 @@ def train(c):
         best_det_auc_roc = det_roc_obs.update(det_roc_auc, epoch)
         best_seg_auc_roc = seg_roc_obs.update(seg_roc_auc, epoch)
         score = weight_precision_recall(precision, recall)
-        if c.action_type != 'norm_test' and score > meta_score:
+        if c.action_type != 'norm_test' and (score > meta_score or best_seg_auc_roc or best_det_auc_roc or best_acc):
+            print(f'Best weight score: precision:{precision} recall:{recall} score:{score}')
             meta_score = score
             meta_thresh_hold = thresh_hold
             save_weights(c,encoder, decoders, c.model, run_date, detection_decoder)

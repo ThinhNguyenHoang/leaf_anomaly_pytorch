@@ -21,6 +21,8 @@
                 "--pro",
                 "-inp",
                 "256",
+                // "--image_processing",
+                // "morph:green",
                 "--dataset",
                 "plant_village",
                 "--class-name",
