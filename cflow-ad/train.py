@@ -328,7 +328,7 @@ def train(c):
         best_seg_auc_roc = seg_roc_obs.update(seg_roc_auc, epoch)
         score = weight_precision_recall(precision, recall)
         if c.action_type != 'norm_test' and (score > meta_score or best_seg_auc_roc or best_det_auc_roc or best_acc):
-            print(f'Best weight score: precision:{precision} recall:{recall} score:{score}')
+            print(f'Saving weight at stats: acc:{accuracy} precision:{precision} recall:{recall} score:{score} cf_matrix: {cf_matrix}')
             meta_score = score
             meta_thresh_hold = thresh_hold
             save_weights(c,encoder, decoders, c.model, run_date, detection_decoder)

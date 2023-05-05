@@ -8,6 +8,8 @@ def get_args():
     parser = argparse.ArgumentParser(description='CFLOW-AD')
     parser.add_argument('--dataset', default='mvtec', type=str, metavar='D',
                         help='dataset name: mvtec/stc (default: mvtec)')
+    parser.add_argument('--sample-num', default=500, type=int, metavar='D',
+                        help='Total sample used for training and testing')
     parser.add_argument('--checkpoint', default='', type=str, metavar='D',
                         help='file with saved checkpoint')
     # Handle running in GCS

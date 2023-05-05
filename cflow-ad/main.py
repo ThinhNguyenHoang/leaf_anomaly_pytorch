@@ -7,6 +7,7 @@ import torchvision
 from config import get_args
 from train import train
 import utils.cloud_utils as cloud_utils
+import traceback
 
 print(f"Notebook runtime: {'GPU' if torch.cuda.is_available() else 'CPU'}")
 print(f"PyTorch version : {torch.__version__}")
@@ -114,5 +115,6 @@ if __name__ == '__main__':
     try:
         main(c)
     except Exception as e:
+        print(traceback.format_exc())
         print(str(e))
 

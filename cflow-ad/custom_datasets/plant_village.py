@@ -10,6 +10,8 @@ PLANT_VILLAGE_CLASS_NAMES =['Pepper__bell___Bacterial_spot', 'Pepper__bell___hea
 NUM_TO_CLASS = {0: 'Pepper__bell___Bacterial_spot', 1: 'Pepper__bell___healthy', 2: 'Potato___Early_blight', 3: 'Potato___Late_blight', 4: 'Potato___healthy', 5: 'Tomato_Bacterial_spot', 6: 'Tomato_Early_blight', 7: 'Tomato_Late_blight', 8: 'Tomato_Leaf_Mold', 9: 'Tomato_Septoria_leaf_spot', 10: 'Tomato_Spider_mites_Two_spotted_spider_mite', 11: 'Tomato__Target_Spot', 12: 'Tomato__Tomato_YellowLeaf__Curl_Virus', 13: 'Tomato__Tomato_mosaic_virus', 14: 'Tomato_healthy'}
 CLASS_TO_NUM = {'Pepper__bell___Bacterial_spot': 0, 'Pepper__bell___healthy': 1, 'Potato___Early_blight': 2, 'Potato___Late_blight': 3, 'Potato___healthy': 4, 'Tomato_Bacterial_spot': 5, 'Tomato_Early_blight': 6, 'Tomato_Late_blight': 7, 'Tomato_Leaf_Mold': 8, 'Tomato_Septoria_leaf_spot': 9, 'Tomato_Spider_mites_Two_spotted_spider_mite': 10, 'Tomato__Target_Spot': 11, 'Tomato__Tomato_YellowLeaf__Curl_Virus': 12, 'Tomato__Tomato_mosaic_virus': 13, 'Tomato_healthy': 14}
 
+TOTAL_SAMPLE_NUM = 500
+
 class PlantVillageDataset(Dataset):
     def __init__(self, c, phase='train', split_ratio=0.8):
         #
@@ -29,7 +31,8 @@ class PlantVillageDataset(Dataset):
         self.healthy_classname = [item for item in self.classes_of_plant if item.find('healthy')][0]
         assert self.healthy_classname, f'There must be a healthy class for plant {c.class_name}'
         # load dataset
-        self.x, self.y, self.mask = self.load_dataset_folder()
+        total_num = c.sample_num if isinstance(c.sample_num, int) else TOTAL_SAMPLE_NUM
+        self.x, self.y, self.mask = self.load_dataset_folder(total_sample_num=total_num)
         # set transforms
         if self.phase == 'train':
             self.transform_x = T.Compose([
@@ -110,7 +113,7 @@ class PlantVillageDataset(Dataset):
         ran_ano_samples = self.take_random(ano_pool, ano_num, seed=12)
         self.handle_add_samples(x,y,mask, ran_ano_samples, 1)
 
-    def load_dataset_folder(self, total_sample_num=500, split_ratios=(0.6, 0.2, 0.2), seed=123):
+    def load_dataset_folder(self, total_sample_num=TOTAL_SAMPLE_NUM, split_ratios=(0.6, 0.2, 0.2), seed=123):
         phase = self.phase
         train_ratio, val_ratio, test_ratio = split_ratios
         # HEALTHY GUYS
