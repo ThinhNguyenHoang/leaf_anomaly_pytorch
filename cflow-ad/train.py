@@ -2,10 +2,10 @@ import os, time
 import numpy as np
 import torch
 import torch.nn.functional as F
-from sklearn.metrics import roc_auc_score, accuracy_score, precision_score, recall_score, confusion_matrix
+from sklearn.metrics import roc_auc_score, accuracy_score, precision_score, recall_score, confusion_matrix, det_curve, auc, f1_score
 from tqdm import tqdm
 from utils.viz_utils import *
-from model import load_decoder_arch, load_encoder_arch, positionalencoding2d, activation, load_saliency_detector_arch, get_saliency_map
+from model import load_decoder_arch, load_encoder_arch, positionalencoding2d, activation, load_saliency_detector_arch, get_saliency_map, ClassificationHead, train_class_head
 from utils.score_utils import get_logp, rescale, Score_Observer, t2np, calculate_seg_pro_auc, get_anomaly_score, rescale_and_score, score_sigmoid, find_best_thresh_hold_sig, weight_precision_recall
 from custom_datasets import *
 from custom_models import *
@@ -13,10 +13,42 @@ from torchvision import transforms
 import utils.cv_utils as cv_utils
 OUT_DIR = './viz/'
 
+
 gamma = 0.0
 theta = torch.nn.Sigmoid()
 log_sigmoid = torch.nn.LogSigmoid()
 
+DET_AUC_ROC = 'DET_AUCROC'
+PREC_REC_AUC = 'PREC_REC_AUC'
+F1_SCORE = 'F1_SCORE'
+SEG_AUROC = 'SEG_AUROC'
+SEG_AUPRO = 'SEG_AUPRO'
+ACCURACY = 'ACCURACY'
+PRECISION = 'PRECISION'
+RECALL = 'RECALL'
+CF_MATRIX = 'CF_MATRIX'
+STAT_DICT = {
+    DET_AUC_ROC: 0,
+    PREC_REC_AUC: 0,
+    F1_SCORE: 0,
+    SEG_AUPRO: 0,
+    SEG_AUROC: 0,
+    ACCURACY: 0,
+    PRECISION: 0,
+    RECALL: 0,
+    CF_MATRIX:[0,0,0,0]
+}
+
+def update_stat_dict(accuracy, precision, recall, cf_matrix, seg_pro_auc, seg_roc_auc, det_roc_auc, prec_rec_auc, f1):
+    STAT_DICT[RECALL] = recall
+    STAT_DICT[ACCURACY] = accuracy
+    STAT_DICT[PRECISION] = precision
+    STAT_DICT[CF_MATRIX] = cf_matrix
+    STAT_DICT[SEG_AUPRO] = seg_pro_auc
+    STAT_DICT[SEG_AUROC] = seg_roc_auc
+    STAT_DICT[DET_AUC_ROC] = det_roc_auc
+    STAT_DICT[PREC_REC_AUC] = prec_rec_auc
+    STAT_DICT[F1_SCORE] = f1
 
 def train_meta_epoch(c, epoch, loader,saliency_detector, encoder, decoders, optimizer, pool_layers, N, detection_decoder=None):
     P = c.condition_vec
@@ -105,7 +137,7 @@ def train_meta_epoch(c, epoch, loader,saliency_detector, encoder, decoders, opti
     #
 
 
-def test_meta_epoch(c, print_func, loader, encoder, decoders, pool_layers, N, saliency_detector=None, detection_decoder=None):
+def test_meta_epoch(c, print_func, loader, encoder, decoders, pool_layers, N, saliency_detector=None, detection_decoder=None, class_head=None):
     #
     P = c.condition_vec
     decoders = [decoder.eval() for decoder in decoders]
@@ -198,13 +230,6 @@ def test_meta_epoch(c, print_func, loader, encoder, decoders, pool_layers, N, sa
     if c.verbose and print_func:
         print_func(test_stat)
     #
-    return height, width, image_list, test_dist, gt_label_list, gt_mask_list, detection_loss
-
-def eval_batch(c, stat_printer, test_loader, encoder, decoders, pool_layers, N, saliency_detector, detection_decoder, save_viz= False, pre_threshold=None):
-    height, width, test_image_list, test_dist, gt_label_list, gt_mask_list, detection_score = test_meta_epoch(
-        c, stat_printer, test_loader, encoder, decoders, pool_layers, N, saliency_detector=saliency_detector, detection_decoder=detection_decoder)
-    accuracy, precision, recall, cf_matrix, seg_pro_auc, seg_roc_auc, det_roc_auc = (0,0,0,0,0,0,0)
-
     # PxEHW
     print('Heights/Widths', height, width)
     test_map = [list() for p in pool_layers]
@@ -218,7 +243,6 @@ def eval_batch(c, stat_printer, test_loader, encoder, decoders, pool_layers, N, 
         test_map[l] = F.interpolate(test_mask.unsqueeze(1),
             size=c.crp_size, mode='bilinear', align_corners=True).squeeze().numpy()
 
-    # EVALUATION METRICS
     # score aggregation
     score_map = np.zeros_like(test_map[0]) # BxHxW
     for l, p in enumerate(pool_layers):
@@ -229,6 +253,16 @@ def eval_batch(c, stat_printer, test_loader, encoder, decoders, pool_layers, N, 
     # --> Lower likelihood --> Higher score --> Abnormal points
     # --> Max likelihood (or near max) --> Normal points
     super_mask = score_mask.max() - score_mask # scalar - BxHxW
+    # Train classification head from super_mask
+    if class_head:
+        train_class_head(c, class_head, super_mask, gt_label_list)
+    return image_list, gt_label_list, gt_mask_list, detection_loss, super_mask
+
+def eval_batch(c, stat_printer, test_loader, encoder, decoders, pool_layers, N, saliency_detector, detection_decoder, class_head, save_viz= False, pre_threshold=None):
+    test_image_list,gt_label_list, gt_mask_list, detection_score, super_mask = test_meta_epoch(
+        c, stat_printer, test_loader, encoder, decoders, pool_layers, N, saliency_detector=saliency_detector, detection_decoder=detection_decoder, class_head=class_head)
+    accuracy, precision, recall, cf_matrix, seg_pro_auc, seg_roc_auc, det_roc_auc = (0,0,0,0,0,0,0)
+
     # det_aur_roc
     # SEG_AUROC
     gt_mask = np.squeeze(np.asarray(gt_mask_list, dtype=bool), axis=1)
@@ -240,20 +274,32 @@ def eval_batch(c, stat_printer, test_loader, encoder, decoders, pool_layers, N, 
 
     # LABEL | Y
     score_label = np.max(super_mask, axis=(1, 2)) # score_label (B,) <-- max([B, H, W], axis=(1,2))
-    if detection_score:
+    if class_head:
+        with torch.no_grad():
+            outputs = class_head(super_mask)
+            _, score_label = torch.max(outputs, 1)
+    elif detection_score:
         score_label = get_anomaly_score(score_label, detection_score)
+    
     gt_label = np.asarray(gt_label_list, dtype=bool)
     # auc_roc
     det_roc_auc = roc_auc_score(gt_label, score_label)
+    # calculate scores
+    lr_precision, lr_recall, _ = precision_recall_curve(gt_label, score_label)
+    f1, prec_rec_auc = f1_score(gt_label, score_label), auc(lr_recall, lr_precision)
 
-    # DET_AUROC
+    # BINARY
     if c.no_mask and c.action_type != 'norm-test':
         # precision | accuracy | recall
-        thresh_hold = pre_threshold
-        if not thresh_hold:
-            thresh_hold = find_best_thresh_hold_sig(gt_label, score_label)
-        scaled_probs = score_sigmoid(score_label)
-        binary_score_label = np.where(scaled_probs > thresh_hold, True, False)
+        if class_head:
+            binary_score_label = score_label
+        else:
+            thresh_hold = pre_threshold
+            # calculate precision and recall for each threshold
+            if not thresh_hold:
+                thresh_hold = find_best_thresh_hold_sig(gt_label, score_label)
+            scaled_probs = score_sigmoid(score_label)
+            binary_score_label = np.where(scaled_probs > thresh_hold, True, False)
         cf_matrix = confusion_matrix(gt_label, binary_score_label).ravel()
         accuracy = accuracy_score(gt_label, binary_score_label)
         precision = precision_score(gt_label, binary_score_label)
@@ -262,7 +308,7 @@ def eval_batch(c, stat_printer, test_loader, encoder, decoders, pool_layers, N, 
     # export visualuzations
     if c.viz and save_viz:
         save_visualization(c, test_image_list, super_mask, gt_mask, gt_label, score_label)
-    return thresh_hold, accuracy, precision, recall, cf_matrix, seg_pro_auc, seg_roc_auc, det_roc_auc
+    update_stat_dict(accuracy, precision, recall, cf_matrix, seg_pro_auc, seg_roc_auc, det_roc_auc, prec_rec_auc, f1)
 
 def train(c):
     run_date = datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S")
@@ -277,9 +323,13 @@ def train(c):
 
     # Test classification decoder
     detection_decoder = None
+    class_head = None
     if 'detection_decoder' in c.sub_arch:
         print("======Using additional detection decoder========")
         detection_decoder = load_decoder_arch(c,pool_dims[-1])
+    if 'class_head' in c.sub_arch:
+        print("======Using classification head ========")
+        class_head = ClassificationHead(input_dims=c.img_size)
     # optimizer
     params = list(decoders[0].parameters())
     for l in range(1, L):
@@ -291,12 +341,14 @@ def train(c):
     N = 256  # hyperparameter that increases batch size for the decoder model by N
 
     # stats
-    det_roc_obs = Score_Observer('DET_AUROC')
-    seg_roc_obs = Score_Observer('SEG_AUROC')
-    seg_pro_obs = Score_Observer('SEG_AUPRO')
-    accuracy_obs = Score_Observer('ACCURACY')
-    precision_obs = Score_Observer('PRECISION')
-    recall_obs = Score_Observer('RECALL')
+    det_roc_obs = Score_Observer(DET_AUC_ROC)
+    prec_rec_auc_obs = Score_Observer(PREC_REC_AUC)
+    f1_score_obs = Score_Observer(F1_SCORE)
+    seg_roc_obs = Score_Observer(SEG_AUROC)
+    seg_pro_obs = Score_Observer(SEG_AUPRO)
+    accuracy_obs = Score_Observer(ACCURACY)
+    precision_obs = Score_Observer(PRECISION)
+    recall_obs = Score_Observer(RECALL)
     #
     meta_score = 0.0
     meta_thresh_hold = 0.0
@@ -314,27 +366,25 @@ def train(c):
         def debug_epoch_printer(stats):
             print(f'Epoch: {epoch}, Stats: {stats}')
         # Validation BATCH
-        thresh_hold, accuracy, precision, recall, cf_matrix, seg_pro_auc, seg_roc_auc, det_roc_auc = eval_batch(c, debug_epoch_printer, val_loader ,encoder, decoders, pool_layers, N, saliency_detector, detection_decoder)
+        eval_batch(c, debug_epoch_printer, val_loader ,encoder, decoders, pool_layers, N, saliency_detector, detection_decoder, class_head)
         # STATICTICS
-        tn, fp, fn, tp = cf_matrix
-        cm_str = f'TN:{tn} FP:{tn} FN:{fn} TP:{tp}'
-        best_acc = accuracy_obs.update(accuracy, epoch, False)
-        best_prec = precision_obs.update(precision, epoch, False)
-        best_rec = recall_obs.update(recall, epoch, False)
+        best_acc = accuracy_obs.update(STAT_DICT[ACCURACY], epoch, False)
+        best_prec = precision_obs.update(STAT_DICT[PRECISION], epoch, False)
+        best_rec = recall_obs.update(STAT_DICT[RECALL], epoch, False)
         # AUC
         if c.pro:
-            seg_pro_obs.update(seg_pro_auc, epoch, False)
-        best_det_auc_roc = det_roc_obs.update(det_roc_auc, epoch)
-        best_seg_auc_roc = seg_roc_obs.update(seg_roc_auc, epoch)
-        score = weight_precision_recall(precision, recall)
-        if c.action_type != 'norm_test' and (score > meta_score or best_seg_auc_roc or best_det_auc_roc or best_acc):
-            print(f'Saving weight at stats: acc:{accuracy} precision:{precision} recall:{recall} score:{score} cf_matrix: {cf_matrix}')
+            seg_pro_obs.update(STAT_DICT[SEG_AUPRO], epoch, False)
+        best_det_auc_roc = det_roc_obs.update(STAT_DICT[DET_AUC_ROC], epoch)
+        best_seg_auc_roc = seg_roc_obs.update(STAT_DICT[SEG_AUROC], epoch)
+        best_prec_rec_auc = prec_rec_auc_obs.update(STAT_DICT[PREC_REC_AUC], epoch)
+        best_f1_score = f1_score_obs.update(STAT_DICT[F1_SCORE], epoch)
+        score = weight_precision_recall(STAT_DICT[PRECISION], STAT_DICT[RECALL])
+        if c.action_type != 'norm_test' and (best_f1_score or best_prec_rec_auc or best_seg_auc_roc or best_det_auc_roc or best_acc or score > meta_score):
+            print(f'Saving weight at stats: {STAT_DICT}')
             meta_score = score
-            meta_thresh_hold = thresh_hold
             save_weights(c,encoder, decoders, c.model, run_date, detection_decoder)
 
     # Run on unseen test set
-    thresh_hold, accuracy, precision, recall, cf_matrix, seg_pro_auc, seg_roc_auc, det_roc_auc = eval_batch(c, debug_epoch_printer, test_loader ,encoder, decoders, pool_layers, N, saliency_detector, detection_decoder, pre_threshold=meta_thresh_hold)
-    test_metrics = {'accuracy': accuracy, 'precision': precision, 'recall': recall, 'cf_matrix': cf_matrix,'seg_roc_auc':seg_roc_auc,'det_roc_auc':det_roc_auc, 'thresh_hold': meta_thresh_hold}
+    eval_batch(c, debug_epoch_printer, test_loader ,encoder, decoders, pool_layers, N, saliency_detector, detection_decoder, class_head, save_viz=True)
     # save_results(det_roc_obs, seg_roc_obs, seg_pro_obs, c.model, c.class_name, run_date)
-    save_model_metrics(c, [accuracy_obs, precision_obs, recall_obs, det_roc_obs, seg_roc_obs],c.model, c.class_name, run_date, confusion_dict=None,test_metrics=test_metrics)
+    save_model_metrics(c, [accuracy_obs, precision_obs, recall_obs, det_roc_obs, seg_roc_obs],c.model, c.class_name, run_date, confusion_dict=None,test_metrics=STAT_DICT)

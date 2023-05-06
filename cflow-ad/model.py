@@ -2,14 +2,16 @@ import math
 import torch
 from torch import nn
 from custom_models import *
+import torch.nn.functional as F
 # FrEIA (https://github.com/VLL-HD/FrEIA/)
+import numpy as np
 import FrEIA.framework as Ff
 import FrEIA.modules as Fm
 import timm
 import os
 from torchvision import transforms
 from custom_models.u2net import u2net_test
-
+from utils import score_utils
 def positionalencoding2d(D, H, W):
     """
     :param D: dimension of the model
@@ -133,3 +135,69 @@ def load_encoder_arch(c, L):
         raise NotImplementedError('{} is not supported architecture!'.format(c.enc_arch))
     #
     return encoder, pool_layers, pool_dims
+
+
+
+class ClassificationHead(nn.Module):
+    # input_dims: 2D anomaly score_map
+    def __init__(self, input_dims, num_class=2):
+        super().__init__()
+        # self.conv1 = nn.Conv2d(3, 6, 3)
+        # self.pool = nn.MaxPool2d(2, 2)
+        # self.conv2 = nn.Conv2d(6, 16, 3)
+        self.fc1 = nn.Linear(input_dims[0] * input_dims[1], 120)
+        self.fc2 = nn.Linear(120, 84)
+        self.fc3 = nn.Linear(84, 2)
+
+    def forward(self, x):
+        if not isinstance(x, torch.Tensor):
+            x = torch.tensor(x, dtype=torch.float32)
+        x = x.float()
+        # x = self.pool(F.relu(self.conv1(x)))
+        # x = self.pool(F.relu(self.conv2(x)))
+        x = torch.flatten(x, 1) # flatten all dimensions except batch
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        x = self.fc3(x)
+        return x
+
+from torch.utils.data import Dataset
+class ScorerDataset(Dataset):
+    def __init__(self, super_mask_list, label_list):
+        self.x = super_mask_list
+        self.y = label_list
+
+    def __len__(self):
+        return len(self.y)
+
+    def __getitem__(self, idx):
+        return self.x[idx], self.y[idx]
+
+import torch.optim as optim
+criterion = nn.CrossEntropyLoss()
+def train_class_head(c, class_head, super_mask_list, label_list):
+    train_loader = torch.utils.data.DataLoader(ScorerDataset(super_mask_list, label_list), batch_size=c.batch_size, shuffle=True, drop_last=True)
+    print('========= ClassHead Training =========')
+    optimizer = optim.SGD(class_head.parameters(), lr=0.001, momentum=0.9)
+    for epoch in range(4):  # loop over the dataset multiple times
+        running_loss = 0.0
+        for i, data in enumerate(train_loader, 0):
+            # get the inputs; data is a list of [inputs, labels]
+            inputs, labels = data
+
+            # zero the parameter gradients
+            optimizer.zero_grad()
+
+            # forward + backward + optimize
+            outputs = class_head(inputs)
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
+
+            # print statistics
+            running_loss += loss.item()
+            if c.verbose and (epoch % 5 == 0):
+                print(f'[{epoch + 1}, {i + 1:5d}] loss: {running_loss / 2000:.3f}')
+                running_loss = 0.0
+
+    print('========= Done! ClassHead Training =========')

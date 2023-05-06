@@ -59,9 +59,10 @@ def get_anomaly_score(seg_score, det_score):
     return BETA * det_score + (1 - BETA) * seg_score
 
 PRED_WEIGHT = 9
-REC_WEIGHT = 8
+REC_WEIGHT = 4
 def weight_precision_recall(precision, recall):
     return PRED_WEIGHT * precision + REC_WEIGHT * recall
+
 def find_best_thresh_hold_sig(y_true, score_label):
     scaled_probs = rescale(score_label)
     precisions, recalls, thresh_holds = precision_recall_curve(y_true, scaled_probs)
