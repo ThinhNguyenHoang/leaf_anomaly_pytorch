@@ -273,7 +273,9 @@ def eval_batch(c, stat_printer, test_loader, encoder, decoders, pool_layers, N, 
             seg_pro_auc = calculate_seg_pro_auc(super_mask, gt_mask)
 
     # LABEL | Y
+    gt_label = np.asarray(gt_label_list, dtype=bool)
     score_label = np.max(super_mask, axis=(1, 2)) # score_label (B,) <-- max([B, H, W], axis=(1,2))
+    lr_precision, lr_recall, _ = precision_recall_curve(gt_label, score_label)
     if class_head:
         with torch.no_grad():
             outputs = class_head(super_mask)
@@ -281,11 +283,9 @@ def eval_batch(c, stat_printer, test_loader, encoder, decoders, pool_layers, N, 
     elif detection_score:
         score_label = get_anomaly_score(score_label, detection_score)
     
-    gt_label = np.asarray(gt_label_list, dtype=bool)
     # auc_roc
     det_roc_auc = roc_auc_score(gt_label, score_label)
     # calculate scores
-    lr_precision, lr_recall, _ = precision_recall_curve(gt_label, score_label)
     f1, prec_rec_auc = f1_score(gt_label, score_label), auc(lr_recall, lr_precision)
 
     # BINARY

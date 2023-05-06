@@ -196,8 +196,8 @@ def train_class_head(c, class_head, super_mask_list, label_list):
 
             # print statistics
             running_loss += loss.item()
-            if c.verbose and (epoch % 5 == 0):
-                print(f'[{epoch + 1}, {i + 1:5d}] loss: {running_loss / 2000:.3f}')
+            if c.verbose and (i % 5 == 0):
+                print(f'[{epoch + 1}, {i + 1:5d}] loss: {running_loss :.3f}')
                 running_loss = 0.0
 
     print('========= Done! ClassHead Training =========')
