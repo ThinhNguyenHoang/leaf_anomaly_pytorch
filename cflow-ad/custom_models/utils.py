@@ -38,13 +38,17 @@ def save_results(det_roc_obs, seg_roc_obs, seg_pro_obs, model_name, class_name, 
     fp.close()
 
 
-def save_weights(c, encoder, decoders, model_name, run_date, detection_decoder=None):
+def save_weights(c, encoder, decoders, model_name, run_date, detection_decoder=None, class_head=None):
     if not os.path.exists(c.weight_dir):
         os.makedirs(c.weight_dir)
     if detection_decoder:
         state = {'encoder_state_dict': encoder.state_dict(),
                 'decoder_state_dict': [decoder.state_dict() for decoder in decoders],
                 'detection_decoder_state_dict':detection_decoder.state_dict()}
+    elif class_head:
+        state = {'encoder_state_dict': encoder.state_dict(),
+                'decoder_state_dict': [decoder.state_dict() for decoder in decoders],
+                'class_head_state_dict':class_head.state_dict()}
     else:
         state = {'encoder_state_dict': encoder.state_dict(),
                 'decoder_state_dict': [decoder.state_dict() for decoder in decoders]}
@@ -55,12 +59,15 @@ def save_weights(c, encoder, decoders, model_name, run_date, detection_decoder=N
     print('Saving weights to {}'.format(filename))
 
 
-def load_weights(c,encoder, decoders, detection_decoder, filename):
+def load_weights(c,encoder, decoders, detection_decoder, class_head, filename):
     path = os.path.join(filename)
     state = torch.load(path)
     if ('detection_decoder' in c.sub_arch) and detection_decoder:
         encoder.load_state_dict(state['encoder_state_dict'], strict=False)
         detection_decoder.load_state_dict(detection_decoder.state_dict())
+    if ('class_head' in c.sub_arch) and detection_decoder:
+        encoder.load_state_dict(state['class_head_state_dict'], strict=False)
+        class_head.load_state_dict(class_head.state_dict())
     encoder.load_state_dict(state['encoder_state_dict'], strict=False)
     decoders = [decoder.load_state_dict(state, strict=False) for decoder, state in zip(decoders, state['decoder_state_dict'])]
     print('Loading weights from {}'.format(filename))

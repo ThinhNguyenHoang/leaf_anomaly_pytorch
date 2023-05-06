@@ -357,7 +357,7 @@ def train(c):
         c.meta_epochs = 1
     for epoch in range(c.meta_epochs):
         if c.action_type == 'norm-test' and c.checkpoint:
-            load_weights(c, encoder, decoders, detection_decoder, c.checkpoint)
+            load_weights(c, encoder, decoders, detection_decoder, class_head, c.checkpoint)
         elif c.action_type == 'norm-train':
             print('Train meta epoch: {}'.format(epoch))
             train_meta_epoch(c, epoch,train_loader, saliency_detector,  encoder, decoders, optimizer, pool_layers, N, detection_decoder)
@@ -382,7 +382,7 @@ def train(c):
         if c.action_type != 'norm_test' and (best_f1_score or best_prec_rec_auc or best_seg_auc_roc or best_det_auc_roc or best_acc or score > meta_score):
             print(f'Saving weight at stats: {STAT_DICT}')
             meta_score = score
-            save_weights(c,encoder, decoders, c.model, run_date, detection_decoder)
+            save_weights(c,encoder, decoders, c.model, run_date, detection_decoder=detection_decoder, class_head=class_head)
 
     # Run on unseen test set
     eval_batch(c, debug_epoch_printer, test_loader ,encoder, decoders, pool_layers, N, saliency_detector, detection_decoder, class_head, save_viz=True)
