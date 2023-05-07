@@ -101,7 +101,7 @@ def export_scores(c, test_img, scores, threshold, out_dir=OUT_DIR):
             plt.close()
 
 
-def export_test_images(c, test_images, gts, scores, threshold, out_dir = OUT_DIR):
+def export_test_images(c, test_images, ground_truth_mask, super_mask, threshold, out_dir = OUT_DIR):
     image_dirs = os.path.join(out_dir, c.model, 'images_' + datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S"))
     cm = 1/2.54
     # images
@@ -111,24 +111,24 @@ def export_test_images(c, test_images, gts, scores, threshold, out_dir = OUT_DIR
         num = len(test_images)
         font = {'family': 'serif', 'color': 'black', 'weight': 'normal', 'size': 8}
         kernel = morphology.disk(4)
-        scores_norm = 1.0/scores.max() # More abnormal --> Higher scores --> Inverted --> Lower score_norm (blue, green area)
+        scores_norm = 1.0/super_mask.max() # More abnormal --> Higher scores --> Inverted --> Lower score_norm (blue, green area)
         for i in range(num):
             img = test_images[i]
             img = denormalization(img, c.norm_mean, c.norm_std)
-            # gts
-            gt_mask = gts[i].astype(np.float64)
+            # ground_truth_mask
+            gt_mask = ground_truth_mask[i].astype(np.float64)
             # print('GT:', i, gt_mask.sum())
             gt_mask = morphology.opening(gt_mask, kernel)
             gt_mask = (255.0*gt_mask).astype(np.uint8)
             gt_img = mark_boundaries(img, gt_mask, color=(1, 0, 0), mode='thick')
             # scores
-            score_mask = np.zeros_like(scores[i])
-            score_mask[scores[i] >  threshold] = 1.0
+            score_mask = np.zeros_like(super_mask[i])
+            score_mask[super_mask[i] >  threshold] = 1.0
             # print('SC:', i, score_mask.sum())
             score_mask = morphology.opening(score_mask, kernel)
             score_mask = (255.0*score_mask).astype(np.uint8)
             score_img = mark_boundaries(img, score_mask, color=(1, 0, 0), mode='thick')
-            score_map = (255.0*scores[i]*scores_norm).astype(np.uint8)
+            score_map = (255.0*super_mask[i]*scores_norm).astype(np.uint8)
             #
             fig_img, ax_img = plt.subplots(3, 1, figsize=(2*cm, 6*cm))
             for ax_i in ax_img:

@@ -180,7 +180,7 @@ def train_class_head(c, class_head, super_mask_list, label_list):
     train_loader = torch.utils.data.DataLoader(ScorerDataset(super_mask_list, label_list), batch_size=c.batch_size, shuffle=True, drop_last=True)
     print('========= ClassHead Training =========')
     optimizer = optim.SGD(class_head.parameters(), lr=0.001, momentum=0.9)
-    for epoch in range(4):  # loop over the dataset multiple times
+    for epoch in range(10):  # loop over the dataset multiple times
         running_loss = 0.0
         for i, data in enumerate(train_loader, 0):
             # get the inputs; data is a list of [inputs, labels]

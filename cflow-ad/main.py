@@ -52,16 +52,13 @@ def handle_submodel_weight_paths(c):
 def main(c):
     # model
     if c.action_type in ['norm-train', 'norm-test']:
-        c.model = f"{c.dataset}_{c.sub_arch}_{c.enc_arch}_{c.dec_arch}_pl{c.pool_layers}_cb{c.coupling_blocks}_inp{c.input_size}_run{c.run_name}_{c.class_name}"
+        c.model = f"ds:{c.dataset}_sa:{c.sub_arch}_enc:{c.enc_arch}_dec:{c.dec_arch}_pl:{c.pool_layers}_cb:{c.coupling_blocks}_cv:{c.image_processing}_inp:{c.input_size}_run:{c.run_name}_date:{c.class_name}"
     else:
         raise NotImplementedError('{} is not supported action-type!'.format(c.action_type))
     # image
     c.img_size = (c.input_size, c.input_size)  # HxW format
     c.crp_size = (c.input_size, c.input_size)  # HxW format
-    if c.dataset == 'stc':
-        c.norm_mean, c.norm_std = 3*[0.5], 3*[0.225]
-    else:
-        c.norm_mean, c.norm_std = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
+    c.norm_mean, c.norm_std = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
     #
     c.img_dims = [3] + list(c.img_size)
     # network hyperparameters

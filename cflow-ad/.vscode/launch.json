@@ -30,10 +30,9 @@
                 "--class-name",
                 "Pepper",
                 "--meta-epochs",
-                "2",
+                "10",
                 "--sub-epochs",
-                "2",
-                "--local-test"
+                "8",
             ],
             "console": "integratedTerminal",
             "justMyCode": true
@@ -64,7 +63,6 @@
                 "--meta-epochs",
                 "1",
                 "--viz",
-                // "--local-test"
             ],
             "console": "integratedTerminal",
             "justMyCode": true
@@ -92,7 +90,6 @@
                 "10",
                 "--sub-epochs",
                 "8",
-                // "--local-test"
             ],
             "console": "integratedTerminal",
             "justMyCode": true
@@ -135,6 +132,35 @@
             "args": [],
             "console": "integratedTerminal",
             "justMyCode": true
-        }
+        },
+        {
+            "name": "TEST NOTHING",
+            "type": "python",
+            "request": "launch",
+            "program": "main.py",
+            "args": [
+                "--gpu",
+                "0",
+                "-bs",
+                "4",
+                "-enc",
+                "wide_resnet50_2",
+                "--pro",
+                "-inp",
+                "256",
+                "--dataset",
+                "plant_village",
+                "--sample-num",
+                "300",
+                "--class-name",
+                "Pepper",
+                "--meta-epochs",
+                "10",
+                "--sub-epochs",
+                "8",
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
     ]
 }

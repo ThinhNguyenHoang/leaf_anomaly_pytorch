@@ -16,15 +16,13 @@ def get_args():
     parser.add_argument("--gcp", action='store_true', default=False, help='Run the training on Google Cloud Platform')
     # Image processing
     # examples: morph:blue|histogram:true <=> morpho on blue channel --> histogram equalization
-    parser.add_argument('--image_processing', type=str, metavar='C',
+    parser.add_argument('--image-processing', type=str, metavar='C',
                         help='Customizing how to use morphological processing (Or Not processing at all) possible value (ex: split:red|hist_eq:true|morph:red|otsu:true)',
                         )
     #
     parser.add_argument('--no-mask', action='store_true',default=False, help='does data includes mask of anomaly')
     parser.add_argument('-cl', '--class-name', default='none', type=str, metavar='C',
                         help='class name for MVTec/STC (default: none)')
-    parser.add_argument('--obj-det', type=float, default=2e-4, metavar='A',
-                        help='saliency detector (default: u2net)')
     # Genral Model Architecture
     parser.add_argument('-enc', '--enc-arch', default='wide_resnet50_2', type=str, metavar='A',
                         help='feature extractor: wide_resnet50_2/resnet18/mobilenet_v3_large (default: wide_resnet50_2)')
@@ -42,13 +40,12 @@ def get_args():
     parser.add_argument('-inp', '--input-size', default=256, type=int, metavar='C',
                         help='image resize dimensions (default: 256)')
     parser.add_argument("--action-type", default='norm-train', type=str, metavar='T', help='norm-train/norm-test (default: norm-train)')
-    parser.add_argument("--local-test", action='store_true', default=False, help='run only on subset of data')
 
     # Hyperparameters
     parser.add_argument('-bs', '--batch-size', default=32, type=int, metavar='B',
                         help='train batch size (default: 32)')
-    parser.add_argument('--lr', type=float, default=2e-4, metavar='LR',
-                        help='learning rate (default: 2e-4)')
+    parser.add_argument('--lr', type=float, default=0.001, metavar='LR',
+                        help='learning rate (default: 0.001)')
     parser.add_argument('--meta-epochs', type=int, default=25, metavar='N',
                         help='number of meta epochs to train (default: 25)')
     parser.add_argument('--sub-epochs', type=int, default=8, metavar='N',

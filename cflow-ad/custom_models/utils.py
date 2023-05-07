@@ -1,6 +1,9 @@
 import os, math
 import numpy as np
 import torch
+import json
+
+from utils.score_utils import Score_Observer
 
 
 
@@ -16,12 +19,18 @@ def save_model_metrics(c, metric_obs_list, model_name, class_name, run_date, con
     if not os.path.exists(c.result_dir):
         os.makedirs(c.result_dir)
     result = ''
-    for obs in metric_obs_list:
-        result += f'{obs.name}: {obs.max_score} at epoch {obs.max_epoch}\n'
     if confusion_dict:
         result += str(confusion_dict)
     if test_metrics:
         result += f"TEST_STATS: {test_metrics}"
+    run_history_dict = {}
+    for obs in metric_obs_list:
+        if isinstance(obs, Score_Observer):
+            result += f'{obs.name}: {obs.max_score} at epoch {obs.max_epoch}\n'
+            run_history_dict[f'{obs.name}'] = obs.history
+    # Dump this run metrics data 
+    result += f'\n=============HISTORY============\n'
+    result += json.dumps(run_history_dict)
     fp = open(os.path.join(c.result_dir, f'{model_name}_{class_name}_{run_date}.txt'), "w")
     fp.write(result)
     fp.close()

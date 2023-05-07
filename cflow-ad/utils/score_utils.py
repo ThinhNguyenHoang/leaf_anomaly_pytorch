@@ -14,7 +14,7 @@ class Score_Observer:
         self.max_epoch = 0
         self.max_score = 0.0
         self.last = 0.0
-
+        self.history = []
     def update(self, score, epoch, print_score=True):
         self.last = score
         save_weights = False
@@ -24,7 +24,7 @@ class Score_Observer:
             save_weights = True
         if print_score:
             self.print_score()
-        
+        self.history.append(score)
         return save_weights
 
     def print_score(self):
