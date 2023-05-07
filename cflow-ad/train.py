@@ -261,7 +261,7 @@ def test_meta_epoch(c, print_func, loader, encoder, decoders, pool_layers, N, sa
 def eval_batch(c, stat_printer, test_loader, encoder, decoders, pool_layers, N, saliency_detector, detection_decoder, class_head, save_viz= False, pre_threshold=None):
     test_image_list,gt_label_list, gt_mask_list, detection_score, super_mask = test_meta_epoch(
         c, stat_printer, test_loader, encoder, decoders, pool_layers, N, saliency_detector=saliency_detector, detection_decoder=detection_decoder, class_head=class_head)
-    accuracy, precision, recall, cf_matrix, seg_pro_auc, seg_roc_auc, det_roc_auc = (0,0,0,0,0,0,0)
+    accuracy, precision, recall, cf_matrix, seg_pro_auc, seg_roc_auc, det_roc_auc, f1, prec_rec_auc = (0,0,0,0,0,0,0, 0,0)
 
     # det_aur_roc
     # SEG_AUROC
@@ -286,7 +286,8 @@ def eval_batch(c, stat_printer, test_loader, encoder, decoders, pool_layers, N, 
     # auc_roc
     det_roc_auc = roc_auc_score(gt_label, score_label)
     # calculate scores
-    f1, prec_rec_auc = f1_score(gt_label, score_label), auc(lr_recall, lr_precision)
+    if class_head:
+        f1, prec_rec_auc = f1_score(gt_label, score_label), auc(lr_recall, lr_precision)
 
     # BINARY
     if c.no_mask and c.action_type != 'norm-test':
@@ -317,11 +318,11 @@ def train(c):
     encoder, pool_layers, pool_dims = load_encoder_arch(c, L)
     encoder = encoder.to(c.device).eval()
     # NF decoder
-    saliency_detector = load_saliency_detector_arch(c)
     decoders = [load_decoder_arch(c, pool_dim) for pool_dim in pool_dims]
     decoders = [decoder.to(c.device) for decoder in decoders]
 
     # Test classification decoder
+    saliency_detector = None
     detection_decoder = None
     class_head = None
     if 'detection_decoder' in c.sub_arch:
@@ -330,6 +331,9 @@ def train(c):
     if 'class_head' in c.sub_arch:
         print("======Using classification head ========")
         class_head = ClassificationHead(input_dims=c.img_size)
+    if 'saliency' in c.sub_arch:
+        print("====== Using saliency detector========")
+        saliency_detector = load_saliency_detector_arch(c)
     # optimizer
     params = list(decoders[0].parameters())
     for l in range(1, L):
@@ -351,7 +355,6 @@ def train(c):
     recall_obs = Score_Observer(RECALL)
     #
     meta_score = 0.0
-    meta_thresh_hold = 0.0
 
     if c.action_type == 'norm-test':
         c.meta_epochs = 1
@@ -368,14 +371,14 @@ def train(c):
         # Validation BATCH
         eval_batch(c, debug_epoch_printer, val_loader ,encoder, decoders, pool_layers, N, saliency_detector, detection_decoder, class_head)
         # STATICTICS
-        best_acc = accuracy_obs.update(STAT_DICT[ACCURACY], epoch, False)
+        best_acc = accuracy_obs.update(STAT_DICT[ACCURACY], epoch)
         best_prec = precision_obs.update(STAT_DICT[PRECISION], epoch, False)
         best_rec = recall_obs.update(STAT_DICT[RECALL], epoch, False)
         # AUC
         if c.pro:
             seg_pro_obs.update(STAT_DICT[SEG_AUPRO], epoch, False)
         best_det_auc_roc = det_roc_obs.update(STAT_DICT[DET_AUC_ROC], epoch)
-        best_seg_auc_roc = seg_roc_obs.update(STAT_DICT[SEG_AUROC], epoch)
+        best_seg_auc_roc = seg_roc_obs.update(STAT_DICT[SEG_AUROC], epoch, False if c.no_mask else True)
         best_prec_rec_auc = prec_rec_auc_obs.update(STAT_DICT[PREC_REC_AUC], epoch)
         best_f1_score = f1_score_obs.update(STAT_DICT[F1_SCORE], epoch)
         score = weight_precision_recall(STAT_DICT[PRECISION], STAT_DICT[RECALL])
@@ -389,4 +392,4 @@ def train(c):
     # Run on unseen test set
     eval_batch(c, debug_epoch_printer, test_loader ,encoder, decoders, pool_layers, N, saliency_detector, detection_decoder, class_head, save_viz=True)
     # save_results(det_roc_obs, seg_roc_obs, seg_pro_obs, c.model, c.class_name, run_date)
-    save_model_metrics(c, [accuracy_obs, precision_obs, recall_obs, det_roc_obs, seg_roc_obs],c.model, c.class_name, run_date, confusion_dict=None,test_metrics=STAT_DICT)
+    save_model_metrics(c, [accuracy_obs, precision_obs, recall_obs, det_roc_obs, seg_roc_obs, f1_score_obs, prec_rec_auc_obs, accuracy_obs],c.model, c.class_name, run_date, confusion_dict=None,test_metrics=STAT_DICT)

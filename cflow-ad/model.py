@@ -174,7 +174,8 @@ class ScorerDataset(Dataset):
         return self.x[idx], self.y[idx]
 
 import torch.optim as optim
-criterion = nn.CrossEntropyLoss()
+class_weights = weights = torch.FloatTensor([0.1, 1.5]) 
+criterion = nn.CrossEntropyLoss(weight=class_weights)
 def train_class_head(c, class_head, super_mask_list, label_list):
     train_loader = torch.utils.data.DataLoader(ScorerDataset(super_mask_list, label_list), batch_size=c.batch_size, shuffle=True, drop_last=True)
     print('========= ClassHead Training =========')
@@ -197,7 +198,7 @@ def train_class_head(c, class_head, super_mask_list, label_list):
             # print statistics
             running_loss += loss.item()
             if c.verbose and (i % 5 == 0):
-                print(f'[{epoch + 1}, {i + 1:5d}] loss: {running_loss :.3f}')
+                print(f'[{epoch + 1}, {i + 1:5d}] loss: {running_loss / 5 :.3f}')
                 running_loss = 0.0
 
     print('========= Done! ClassHead Training =========')

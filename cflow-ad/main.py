@@ -23,7 +23,7 @@ def handle_dataset_path(c):
     # DATASET SPECIFIC ARGUMENTS ADJUSTMENT
     if c.dataset == 'mvtec':
         c.data_path = './data/MVTec-AD'
-        raise NotImplementedError('{} is not supported for running on cloud!'.format(c.dataset))
+        # raise NotImplementedError('{} is not supported for running on cloud!'.format(c.dataset))
         # if c.gcp:
         #     c.data_path = os.path.join(cloud_utils.get_bucket_prefix(), 'datasets','MVTec-AD')
     elif c.dataset == 'plant_village':
