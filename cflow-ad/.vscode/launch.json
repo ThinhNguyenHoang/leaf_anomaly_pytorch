@@ -30,9 +30,10 @@
                 "--class-name",
                 "Pepper",
                 "--meta-epochs",
-                "10",
+                "1",
                 "--sub-epochs",
-                "2",
+                "1",
+                "--viz"
             ],
             "console": "integratedTerminal",
             "justMyCode": true
@@ -60,8 +61,6 @@
                 "plant_village",
                 "--class-name",
                 "Pepper",
-                "--meta-epochs",
-                "1",
                 "--viz",
             ],
             "console": "integratedTerminal",

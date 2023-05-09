@@ -67,19 +67,30 @@ def save_weights(c, encoder, decoders, model_name, run_date, detection_decoder=N
     torch.save(state, path)
     print('Saving weights to {}'.format(filename))
 
-
-def load_weights(c,encoder, decoders, detection_decoder, class_head, filename):
-    path = os.path.join(filename)
+def parse_checkpoint_filename(filename):
+    #
+    date_idx = filename.find("date") # strip from _date...
+    checkpoint_name = date_idx[:date_idx]
+    used_args = checkpoint_name.split("&")
+    args_dict = {}
+    for args in used_args:
+        k,v = args.split(":")
+        args_dict[k] = v
+    return args_dict
+def load_weights(c,encoder, decoders, detection_decoder, class_head, checkpoint_filename):
+    path = os.path.join(checkpoint_filename)
     state = torch.load(path)
-    if ('detection_decoder' in c.sub_arch) and detection_decoder:
+    used_args = parse_checkpoint_filename(checkpoint_filename)
+    sub_arch = used_args['sa'] if 'sa' in used_args else ''
+    if ('detection_decoder' in sub_arch) and detection_decoder:
         encoder.load_state_dict(state['encoder_state_dict'], strict=False)
         detection_decoder.load_state_dict(detection_decoder.state_dict())
-    if ('class_head' in c.sub_arch) and detection_decoder:
+    if ('class_head' in sub_arch) and detection_decoder:
         encoder.load_state_dict(state['class_head_state_dict'], strict=False)
         class_head.load_state_dict(class_head.state_dict())
     encoder.load_state_dict(state['encoder_state_dict'], strict=False)
     decoders = [decoder.load_state_dict(state, strict=False) for decoder, state in zip(decoders, state['decoder_state_dict'])]
-    print('Loading weights from {}'.format(filename))
+    print('Loading weights from {}'.format(checkpoint_filename))
 
 
 def adjust_learning_rate(c, optimizer, epoch):

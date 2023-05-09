@@ -39,9 +39,13 @@ def load_saliency_detector_arch(c):
     if 'saliency' in c.sub_arch and not u2net_weight_path:
         raise RuntimeError('Cannot use saliency without path for saved weights of resnet model')
     return u2net_test.load_u2net_eval(u2net_weight_path)
+
+def binarize_map(saliency_map, threshold=0.5):
+    return (saliency_map>threshold)*1
 def get_saliency_map(detector, input_img):
     pred = u2net_test.eval_with_u2net(detector, input_img)
-    return pred
+    return binarize_map(pred)
+    # return pred
 # ================== DECODER ======================
 def subnet_fc(dims_in, dims_out):
     return nn.Sequential(nn.Linear(dims_in, 2*dims_in), nn.ReLU(), nn.Linear(2*dims_in, dims_out))

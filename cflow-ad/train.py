@@ -148,6 +148,7 @@ def test_meta_epoch(c, print_func, loader, encoder, decoders, pool_layers, N, sa
     image_list = list()
     gt_label_list = list()
     gt_mask_list = list()
+    saliency_image_list = list()
     test_dist = [list() for layer in pool_layers]
     test_loss = 0.0
     test_count = 0
@@ -223,6 +224,8 @@ def test_meta_epoch(c, print_func, loader, encoder, decoders, pool_layers, N, sa
                     decoder_log_prob = get_logp(C, z_i, log_jac_det_i)
                     log_prob = decoder_log_prob / C
                     detection_loss = -log_sigmoid(log_prob)
+            if 'saliency' in c.sub_arch:
+                saliency_image_list += saliency_map.detach().cpu().tolist()
     #
     fps = len(loader.dataset) / (time.time() - start)
     mean_test_loss = test_loss / test_count
@@ -252,15 +255,16 @@ def test_meta_epoch(c, print_func, loader, encoder, decoders, pool_layers, N, sa
     # invert probs to anomaly scores
     # --> Lower likelihood --> Higher score --> Abnormal points
     # --> Max likelihood (or near max) --> Normal points
-    super_mask = score_mask.max() - score_mask # scalar - BxHxW
+    super_mask = score_mask.max() - score_mask # scalar - BxHxW --> Shape (Bx3, H,W)
     # Train classification head from super_mask
     if class_head and should_train_class_head:
-        train_class_head(c, class_head, super_mask, gt_label_list)
-    return image_list, gt_label_list, gt_mask_list, detection_loss, super_mask
+        saliency_added = super_mask * saliency_image_list
+        train_class_head(c, class_head,saliency_added, gt_label_list)
+    return image_list, gt_label_list, gt_mask_list, detection_loss, super_mask, saliency_image_list
 
 def eval_batch(c, stat_printer, test_loader, encoder, decoders, pool_layers, N, saliency_detector, detection_decoder, class_head, is_test_run=False,pre_threshold=None):
     should_train_class_head = not is_test_run
-    test_image_list,gt_label_list, gt_mask_list, detection_score, super_mask = test_meta_epoch(
+    test_image_list,gt_label_list, gt_mask_list, detection_score, super_mask, saliency_image_list = test_meta_epoch(
         c, stat_printer, test_loader, encoder, decoders, pool_layers, N, saliency_detector=saliency_detector, detection_decoder=detection_decoder, class_head=class_head, should_train_class_head=should_train_class_head)
     accuracy, precision, recall, cf_matrix, seg_pro_auc, seg_roc_auc, det_roc_auc, f1, prec_rec_auc = (0,0,0,0,0,0,0, 0,0)
 
@@ -310,7 +314,7 @@ def eval_batch(c, stat_printer, test_loader, encoder, decoders, pool_layers, N, 
     # export visualuzations
     should_save_viz = is_test_run
     if c.viz and should_save_viz:
-        save_visualization(c, test_image_list, super_mask, gt_mask, gt_label, score_label)
+        save_visualization(c, test_image_list, super_mask, gt_mask, gt_label, score_label, saliency_list=saliency_image_list)
     update_stat_dict(accuracy, precision, recall, cf_matrix, seg_pro_auc, seg_roc_auc, det_roc_auc, prec_rec_auc, f1)
 
 def train(c):
@@ -401,6 +405,6 @@ def train(c):
                 print(f"NO IMPROVEMENT AFTER {PATIENCE} epochs. EARLY STOPPING NOW")
                 break
     # Run on unseen test set
-    eval_batch(c, debug_epoch_printer, test_loader ,encoder, decoders, pool_layers, N, saliency_detector, detection_decoder, class_head, )
+    eval_batch(c, debug_epoch_printer, test_loader ,encoder, decoders, pool_layers, N, saliency_detector, detection_decoder, class_head, is_test_run=True)
     # save_results(det_roc_obs, seg_roc_obs, seg_pro_obs, c.model, c.class_name, run_date)
     save_model_metrics(c, [accuracy_obs, precision_obs, recall_obs, det_roc_obs, seg_roc_obs, f1_score_obs, prec_rec_auc_obs, accuracy_obs],c.model, c.class_name, run_date, confusion_dict=None,test_metrics=STAT_DICT)
