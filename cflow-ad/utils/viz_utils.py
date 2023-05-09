@@ -65,7 +65,7 @@ def export_groundtruth(c, test_img, gts, out_dir=OUT_DIR):
 
 
 def export_scores(c, test_img, scores, threshold, out_dir=OUT_DIR):
-    image_dirs = os.path.join(out_dir, c.model, 'sc_images_' + datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S"))
+    image_dirs = os.path.join(out_dir, c.model, 'scores_images_' + datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S"))
     # images
     if not os.path.isdir(image_dirs):
         print('Exporting scores...')
