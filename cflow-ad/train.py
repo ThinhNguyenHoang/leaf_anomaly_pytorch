@@ -388,12 +388,13 @@ def train(c):
         best_prec_rec_auc = prec_rec_auc_obs.update(STAT_DICT[PREC_REC_AUC], epoch)
         best_f1_score = f1_score_obs.update(STAT_DICT[F1_SCORE], epoch)
         score = weight_precision_recall(STAT_DICT[PRECISION], STAT_DICT[RECALL])
-        class_head_condition = ('class_head' in c.sub_arch) and (best_f1_score or best_det_auc_roc)
+        class_head_condition = ('class_head' in c.sub_arch) and (best_f1_score or best_det_auc_roc or best_prec_rec_auc or best_acc)
         normal_condition = ('class_head' not in c.sub_arch) and (score > meta_score) or best_acc
         if c.action_type != 'norm_test' and (class_head_condition or normal_condition):
             print(f'Saving weight at stats: {STAT_DICT}')
             meta_score = score
             save_weights(c,encoder, decoders, c.model, run_date, detection_decoder=detection_decoder, class_head=class_head)
+            early_stopping_patience = PATIENCE
         else:
             early_stopping_patience = early_stopping_patience - 1
             if early_stopping_patience == 0:
