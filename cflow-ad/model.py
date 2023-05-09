@@ -41,11 +41,11 @@ def load_saliency_detector_arch(c):
     return u2net_test.load_u2net_eval(u2net_weight_path)
 
 def binarize_map(saliency_map, threshold=0.5):
-    return (saliency_map>threshold)*1
+    return (saliency_map>threshold)*1.0
 def get_saliency_map(detector, input_img):
     pred = u2net_test.eval_with_u2net(detector, input_img)
-    return binarize_map(pred)
-    # return pred
+    # return binarize_map(pred)
+    return pred
 # ================== DECODER ======================
 def subnet_fc(dims_in, dims_out):
     return nn.Sequential(nn.Linear(dims_in, 2*dims_in), nn.ReLU(), nn.Linear(2*dims_in, dims_out))
@@ -197,7 +197,7 @@ class ScorerDataset(Dataset):
         return self.x[idx], self.y[idx]
 
 import torch.optim as optim
-class_weights = weights = torch.FloatTensor([0.1, 1.5]) 
+class_weights = weights = torch.FloatTensor([1.0, 8.5]) 
 criterion = nn.CrossEntropyLoss(weight=class_weights)
 def train_class_head(c, class_head, super_mask_list, label_list):
     train_loader = torch.utils.data.DataLoader(ScorerDataset(super_mask_list, label_list), batch_size=c.batch_size, shuffle=True, drop_last=True)
@@ -220,8 +220,8 @@ def train_class_head(c, class_head, super_mask_list, label_list):
 
             # print statistics
             running_loss += loss.item()
-            if c.verbose and (i % 5 == 0):
-                print(f'[{epoch + 1}, {i + 1:5d}] loss: {running_loss / 5 :.3f}')
+            if c.verbose and (i % 10 == 0):
+                print(f'[Epoch: {epoch}] loss: {running_loss / 10 :.3f}')
                 running_loss = 0.0
 
     print('========= Done! ClassHead Training =========')

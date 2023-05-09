@@ -30,9 +30,9 @@
                 "--class-name",
                 "Pepper",
                 "--meta-epochs",
-                "1",
+                "10",
                 "--sub-epochs",
-                "1",
+                "8",
                 "--viz"
             ],
             "console": "integratedTerminal",

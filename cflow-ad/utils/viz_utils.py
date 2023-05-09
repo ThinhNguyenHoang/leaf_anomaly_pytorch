@@ -78,8 +78,7 @@ def export_scores(c, test_img, scores, threshold, saliency_list=None ,out_dir=OU
             img = denormalization(img, c.norm_mean, c.norm_std)
             if saliency_list:
                 saliency_mask = saliency_list[i]
-                saliency_mask = 255.0 * saliency_mask
-                # saliency_mask = (255.0 * saliency_mask).astype(np.uint8)
+                saliency_mask = np.multiply(255.0, saliency_mask)
             # scores
             score_mask = np.zeros_like(scores[i])
             score_mask[scores[i] >  threshold] = 1.0
