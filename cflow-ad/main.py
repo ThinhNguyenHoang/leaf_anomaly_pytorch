@@ -52,7 +52,7 @@ def handle_submodel_weight_paths(c):
 def main(c):
     # model
     if c.action_type in ['norm-train', 'norm-test']:
-        c.model = f"ds:{c.dataset}_sa:{c.sub_arch}_enc:{c.enc_arch}_dec:{c.dec_arch}_pl:{c.pool_layers}_cb:{c.coupling_blocks}_cv:{c.image_processing}_inp:{c.input_size}_run:{c.run_name}_date:{c.class_name}"
+        c.model = f"ds:{c.dataset}&sa:{c.sub_arch}&enc:{c.enc_arch}&dec:{c.dec_arch}&pl:{c.pool_layers}&cb:{c.coupling_blocks}&cv:{c.image_processing}&inp:{c.input_size}&run:{c.run_name}&date:{c.class_name}"
     else:
         raise NotImplementedError('{} is not supported action-type!'.format(c.action_type))
     # image

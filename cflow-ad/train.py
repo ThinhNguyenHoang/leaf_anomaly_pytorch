@@ -359,7 +359,7 @@ def train(c):
     #
     meta_score = 0.0
     # How many unimproved epoch before stop training
-    PATIENCE = 5
+    PATIENCE = c.patience
     early_stopping_patience = PATIENCE
 
     if c.action_type == 'norm-test':

@@ -50,6 +50,8 @@ def get_args():
                         help='number of meta epochs to train (default: 25)')
     parser.add_argument('--sub-epochs', type=int, default=8, metavar='N',
                         help='number of sub epochs to train (default: 8)')
+    parser.add_argument('--patience', type=int, default=6, metavar='E',
+                        help='number of epochs unimproved before stopping')
     # Evaluation params
     parser.add_argument('--pro', action='store_true', default=False,
                         help='enables estimation of AUPRO metric')
