@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from sklearn.metrics import roc_auc_score, accuracy_score, precision_score, recall_score, confusion_matrix, det_curve, auc, f1_score
 from tqdm import tqdm
 from utils.viz_utils import *
-from model import load_decoder_arch, load_encoder_arch, positionalencoding2d, activation, load_saliency_detector_arch, get_saliency_map, ClassificationHead, train_class_head
+from model import load_decoder_arch, load_encoder_arch, positionalencoding2d, activation, load_saliency_detector_arch, get_saliency_map, ClassificationHead, Wide, train_class_head
 from utils.score_utils import get_logp, rescale, Score_Observer, t2np, calculate_seg_pro_auc, get_anomaly_score, rescale_and_score, score_sigmoid, find_best_thresh_hold_sig, weight_precision_recall
 from custom_datasets import *
 from custom_models import *
@@ -137,7 +137,7 @@ def train_meta_epoch(c, epoch, loader,saliency_detector, encoder, decoders, opti
     #
 
 
-def test_meta_epoch(c, print_func, loader, encoder, decoders, pool_layers, N, saliency_detector=None, detection_decoder=None, class_head=None):
+def test_meta_epoch(c, print_func, loader, encoder, decoders, pool_layers, N, saliency_detector=None, detection_decoder=None, class_head=None, should_train_class_head=True):
     #
     P = c.condition_vec
     decoders = [decoder.eval() for decoder in decoders]
@@ -254,13 +254,14 @@ def test_meta_epoch(c, print_func, loader, encoder, decoders, pool_layers, N, sa
     # --> Max likelihood (or near max) --> Normal points
     super_mask = score_mask.max() - score_mask # scalar - BxHxW
     # Train classification head from super_mask
-    if class_head:
+    if class_head and should_train_class_head:
         train_class_head(c, class_head, super_mask, gt_label_list)
     return image_list, gt_label_list, gt_mask_list, detection_loss, super_mask
 
-def eval_batch(c, stat_printer, test_loader, encoder, decoders, pool_layers, N, saliency_detector, detection_decoder, class_head, save_viz= False, pre_threshold=None):
+def eval_batch(c, stat_printer, test_loader, encoder, decoders, pool_layers, N, saliency_detector, detection_decoder, class_head, is_test_run=False,pre_threshold=None):
+    should_train_class_head = not is_test_run
     test_image_list,gt_label_list, gt_mask_list, detection_score, super_mask = test_meta_epoch(
-        c, stat_printer, test_loader, encoder, decoders, pool_layers, N, saliency_detector=saliency_detector, detection_decoder=detection_decoder, class_head=class_head)
+        c, stat_printer, test_loader, encoder, decoders, pool_layers, N, saliency_detector=saliency_detector, detection_decoder=detection_decoder, class_head=class_head, should_train_class_head=should_train_class_head)
     accuracy, precision, recall, cf_matrix, seg_pro_auc, seg_roc_auc, det_roc_auc, f1, prec_rec_auc = (0,0,0,0,0,0,0, 0,0)
 
     # det_aur_roc
@@ -307,7 +308,8 @@ def eval_batch(c, stat_printer, test_loader, encoder, decoders, pool_layers, N, 
         recall = recall_score(gt_label, binary_score_label)
 
     # export visualuzations
-    if c.viz and save_viz:
+    should_save_viz = is_test_run
+    if c.viz and should_save_viz:
         save_visualization(c, test_image_list, super_mask, gt_mask, gt_label, score_label)
     update_stat_dict(accuracy, precision, recall, cf_matrix, seg_pro_auc, seg_roc_auc, det_roc_auc, prec_rec_auc, f1)
 
@@ -330,7 +332,8 @@ def train(c):
         detection_decoder = load_decoder_arch(c,pool_dims[-1])
     if 'class_head' in c.sub_arch:
         print("======Using classification head ========")
-        class_head = ClassificationHead(input_dims=c.img_size)
+        # class_head = ClassificationHead(input_dims=c.img_size)
+        class_head = Wide(input_dims=c.img_size)
     if 'saliency' in c.sub_arch:
         print("====== Using saliency detector========")
         saliency_detector = load_saliency_detector_arch(c)
@@ -355,6 +358,9 @@ def train(c):
     recall_obs = Score_Observer(RECALL)
     #
     meta_score = 0.0
+    # How many unimproved epoch before stop training
+    PATIENCE = 5
+    early_stopping_patience = PATIENCE
 
     if c.action_type == 'norm-test':
         c.meta_epochs = 1
@@ -388,8 +394,12 @@ def train(c):
             print(f'Saving weight at stats: {STAT_DICT}')
             meta_score = score
             save_weights(c,encoder, decoders, c.model, run_date, detection_decoder=detection_decoder, class_head=class_head)
-
+        else:
+            early_stopping_patience = early_stopping_patience - 1
+            if early_stopping_patience == 0:
+                print(f"NO IMPROVEMENT AFTER {PATIENCE} epochs. EARLY STOPPING NOW")
+                break
     # Run on unseen test set
-    eval_batch(c, debug_epoch_printer, test_loader ,encoder, decoders, pool_layers, N, saliency_detector, detection_decoder, class_head, save_viz=True)
+    eval_batch(c, debug_epoch_printer, test_loader ,encoder, decoders, pool_layers, N, saliency_detector, detection_decoder, class_head, )
     # save_results(det_roc_obs, seg_roc_obs, seg_pro_obs, c.model, c.class_name, run_date)
     save_model_metrics(c, [accuracy_obs, precision_obs, recall_obs, det_roc_obs, seg_roc_obs, f1_score_obs, prec_rec_auc_obs, accuracy_obs],c.model, c.class_name, run_date, confusion_dict=None,test_metrics=STAT_DICT)

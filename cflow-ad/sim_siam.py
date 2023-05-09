@@ -13,8 +13,8 @@ from lightly.models.modules.heads import SimSiamPredictionHead, SimSiamProjectio
 # The default configuration with a batch size and input resolution of 256
 # requires 16GB of GPU memory.
 
-num_workers = 8
-batch_size = 128
+num_workers = 1
+batch_size = 2
 seed = 1
 epochs = 50
 input_size = 256
@@ -116,7 +116,7 @@ class SimSiam(nn.Module):
 
 # resnet = torchvision.models.resnet18()
 # backbone = nn.Sequential(*list(resnet.children())[:-1])
-backbone = wide_resnet50_2(pretrained=True, progress=True)
+backbone = wide_resnet50_2()
 model = SimSiam(backbone, num_ftrs, proj_hidden_dim, pred_hidden_dim, out_dim)
 
 # SimSiam uses a symmetric negative cosine similarity loss and does therefore
@@ -194,182 +194,3 @@ for e in range(epochs):
         f"Loss = {avg_loss:.2f} | "
         f"Collapse Level: {collapse_level:.2f} / 1.00"
     )
-
-
-# # %%
-# # To embed the images in the dataset we simply iterate over the test dataloader
-# # and feed the images to the model backbone. Make sure to disable gradients for
-# # this part.
-
-# embeddings = []
-# filenames = []
-
-# # disable gradients for faster calculations
-# model.eval()
-# with torch.no_grad():
-#     for i, (x, _, fnames) in enumerate(dataloader_test):
-#         # move the images to the gpu
-#         x = x.to(device)
-#         # embed the images with the pre-trained backbone
-#         y = model.backbone(x).flatten(start_dim=1)
-#         # store the embeddings and filenames in lists
-#         embeddings.append(y)
-#         filenames = filenames + list(fnames)
-
-# # concatenate the embeddings and convert to numpy
-# embeddings = torch.cat(embeddings, dim=0)
-# embeddings = embeddings.cpu().numpy()
-
-
-# # %%
-# # Scatter Plot and Nearest Neighbors
-# # ----------------------------------
-# # Now that we have the embeddings, we can visualize the data with a scatter plot.
-# # Further down, we also check out the nearest neighbors of a few example images.
-# #
-# # As a first step, we make a few additional imports.
-
-# # for plotting
-# import os
-
-# import matplotlib.offsetbox as osb
-# import matplotlib.pyplot as plt
-
-# # for resizing images to thumbnails
-# import torchvision.transforms.functional as functional
-# from matplotlib import rcParams as rcp
-# from PIL import Image
-
-# # for clustering and 2d representations
-# from sklearn import random_projection
-
-# # %%
-# # Then, we transform the embeddings using UMAP and rescale them to fit in the
-# # [0, 1] square.
-# #
-
-# # for the scatter plot we want to transform the images to a two-dimensional
-# # vector space using a random Gaussian projection
-# projection = random_projection.GaussianRandomProjection(n_components=2)
-# embeddings_2d = projection.fit_transform(embeddings)
-
-# # normalize the embeddings to fit in the [0, 1] square
-# M = np.max(embeddings_2d, axis=0)
-# m = np.min(embeddings_2d, axis=0)
-# embeddings_2d = (embeddings_2d - m) / (M - m)
-
-
-# # %%
-# # Let's start with a nice scatter plot of our dataset! The helper function
-# # below will create one.
-
-
-# def get_scatter_plot_with_thumbnails():
-#     """Creates a scatter plot with image overlays."""
-#     # initialize empty figure and add subplot
-#     fig = plt.figure()
-#     fig.suptitle("Scatter Plot of the Sentinel-2 Dataset")
-#     ax = fig.add_subplot(1, 1, 1)
-#     # shuffle images and find out which images to show
-#     shown_images_idx = []
-#     shown_images = np.array([[1.0, 1.0]])
-#     iterator = [i for i in range(embeddings_2d.shape[0])]
-#     np.random.shuffle(iterator)
-#     for i in iterator:
-#         # only show image if it is sufficiently far away from the others
-#         dist = np.sum((embeddings_2d[i] - shown_images) ** 2, 1)
-#         if np.min(dist) < 2e-3:
-#             continue
-#         shown_images = np.r_[shown_images, [embeddings_2d[i]]]
-#         shown_images_idx.append(i)
-
-#     # plot image overlays
-#     for idx in shown_images_idx:
-#         thumbnail_size = int(rcp["figure.figsize"][0] * 2.0)
-#         path = os.path.join(path_to_data, filenames[idx])
-#         img = Image.open(path)
-#         img = functional.resize(img, thumbnail_size)
-#         img = np.array(img)
-#         img_box = osb.AnnotationBbox(
-#             osb.OffsetImage(img, cmap=plt.cm.gray_r),
-#             embeddings_2d[idx],
-#             pad=0.2,
-#         )
-#         ax.add_artist(img_box)
-
-#     # set aspect ratio
-#     ratio = 1.0 / ax.get_data_ratio()
-#     ax.set_aspect(ratio, adjustable="box")
-
-
-# # get a scatter plot with thumbnail overlays
-# get_scatter_plot_with_thumbnails()
-
-
-# # %%
-# # Next, we plot example images and their nearest neighbors (calculated from the
-# # embeddings generated above). This is a very simple approach to find more images
-# # of a certain type where a few examples are already available. For example,
-# # when a subset of the data is already labelled and one class of images is clearly
-# # underrepresented, one can easily query more images of this class from the
-# # unlabelled dataset.
-# #
-# # Let's get to work! The plots are shown below.
-
-# example_images = [
-#     "S2B_MSIL1C_20200526T101559_N0209_R065_T31TGE/tile_00154.png",  # water 1
-#     "S2B_MSIL1C_20200526T101559_N0209_R065_T32SLJ/tile_00527.png",  # water 2
-#     "S2B_MSIL1C_20200526T101559_N0209_R065_T32TNL/tile_00556.png",  # land
-#     "S2B_MSIL1C_20200526T101559_N0209_R065_T31SGD/tile_01731.png",  # clouds 1
-#     "S2B_MSIL1C_20200526T101559_N0209_R065_T32SMG/tile_00238.png",  # clouds 2
-# ]
-
-
-# def get_image_as_np_array(filename: str):
-#     """Loads the image with filename and returns it as a numpy array."""
-#     img = Image.open(filename)
-#     return np.asarray(img)
-
-
-# def get_image_as_np_array_with_frame(filename: str, w: int = 5):
-#     """Returns an image as a numpy array with a black frame of width w."""
-#     img = get_image_as_np_array(filename)
-#     ny, nx, _ = img.shape
-#     # create an empty image with padding for the frame
-#     framed_img = np.zeros((w + ny + w, w + nx + w, 3))
-#     framed_img = framed_img.astype(np.uint8)
-#     # put the original image in the middle of the new one
-#     framed_img[w:-w, w:-w] = img
-#     return framed_img
-
-
-# def plot_nearest_neighbors_3x3(example_image: str, i: int):
-#     """Plots the example image and its eight nearest neighbors."""
-#     n_subplots = 9
-#     # initialize empty figure
-#     fig = plt.figure()
-#     fig.suptitle(f"Nearest Neighbor Plot {i + 1}")
-#     #
-#     example_idx = filenames.index(example_image)
-#     # get distances to the cluster center
-#     distances = embeddings - embeddings[example_idx]
-#     distances = np.power(distances, 2).sum(-1).squeeze()
-#     # sort indices by distance to the center
-#     nearest_neighbors = np.argsort(distances)[:n_subplots]
-#     # show images
-#     for plot_offset, plot_idx in enumerate(nearest_neighbors):
-#         ax = fig.add_subplot(3, 3, plot_offset + 1)
-#         # get the corresponding filename
-#         fname = os.path.join(path_to_data, filenames[plot_idx])
-#         if plot_offset == 0:
-#             ax.set_title(f"Example Image")
-#             plt.imshow(get_image_as_np_array_with_frame(fname))
-#         else:
-#             plt.imshow(get_image_as_np_array(fname))
-#         # let's disable the axis
-#         plt.axis("off")
-
-
-# # show example images for each cluster
-# for i, example_image in enumerate(example_images):
-#     plot_nearest_neighbors_3x3(example_image, i)

@@ -137,6 +137,25 @@ def load_encoder_arch(c, L):
     return encoder, pool_layers, pool_dims
 
 
+class Wide(nn.Module):
+    def __init__(self, input_dims, num_class=2):
+        super().__init__()
+        self.flatten = nn.Flatten()
+        self.linear_relu_stack = nn.Sequential(
+            nn.Linear(input_dims[0] * input_dims[1], 1024),
+            nn.ReLU(),
+            nn.Linear(1024, 1024),
+            nn.ReLU(),
+            nn.Linear(1024, num_class),
+        )
+
+    def forward(self, x):
+        if not isinstance(x, torch.Tensor):
+            x = torch.tensor(x, dtype=torch.float32)
+        x = x.float()
+        x = self.flatten(x)
+        logits = self.linear_relu_stack(x)
+        return logits
 
 class ClassificationHead(nn.Module):
     # input_dims: 2D anomaly score_map
@@ -147,7 +166,7 @@ class ClassificationHead(nn.Module):
         # self.conv2 = nn.Conv2d(6, 16, 3)
         self.fc1 = nn.Linear(input_dims[0] * input_dims[1], 120)
         self.fc2 = nn.Linear(120, 84)
-        self.fc3 = nn.Linear(84, 2)
+        self.fc3 = nn.Linear(84, num_class)
 
     def forward(self, x):
         if not isinstance(x, torch.Tensor):
