@@ -34,6 +34,13 @@ def get_args():
                         help='number of layers used in NF model (default: 8)')
     parser.add_argument('--sub-arch', default='', type=str, metavar='A',
                         help='suplemental arch. ex: (saliency|detection)')
+    # Class head config
+    parser.add_argument('--class-head-stop-epoch', default=6, type=int, metavar='C',
+                        help='number of meta epochs to train class head (small to avoid overfiting)')
+    parser.add_argument('--class-head-epochs', default=4, type=int, metavar='C',
+                        help='number of epochs to train class head')
+    parser.add_argument('--anomaly-weight', default=2.0, type=float, metavar='C',
+                        help='how much anomaly weight is that compare to normal')
     # Run time settings
     parser.add_argument('-run', '--run-name', default=0, type=int, metavar='C',
                         help='name of the run (default: 0)')

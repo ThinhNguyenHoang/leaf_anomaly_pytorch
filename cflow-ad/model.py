@@ -197,13 +197,13 @@ class ScorerDataset(Dataset):
         return self.x[idx], self.y[idx]
 
 import torch.optim as optim
-class_weights = weights = torch.FloatTensor([1.0, 8.5]) 
-criterion = nn.CrossEntropyLoss(weight=class_weights)
-def train_class_head(c, class_head, super_mask_list, label_list):
+def train_class_head(c, class_head, super_mask_list, label_list, start_lr=0.001):
     train_loader = torch.utils.data.DataLoader(ScorerDataset(super_mask_list, label_list), batch_size=c.batch_size, shuffle=True, drop_last=True)
+    class_weights = weights = torch.FloatTensor([1.2, 1.2 * c.anomaly_weight]) 
+    criterion = nn.CrossEntropyLoss(weight=class_weights)
     print('========= ClassHead Training =========')
-    optimizer = optim.SGD(class_head.parameters(), lr=0.001, momentum=0.9)
-    for epoch in range(10):  # loop over the dataset multiple times
+    optimizer = optim.SGD(class_head.parameters(), lr=start_lr, momentum=0.9, weight_decay=5e-4)
+    for epoch in range(c.class_head_epochs):  # loop over the dataset multiple times
         running_loss = 0.0
         for i, data in enumerate(train_loader, 0):
             # get the inputs; data is a list of [inputs, labels]

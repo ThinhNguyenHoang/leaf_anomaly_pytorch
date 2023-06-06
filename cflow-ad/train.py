@@ -137,7 +137,7 @@ def train_meta_epoch(c, epoch, loader,saliency_detector, encoder, decoders, opti
     #
 
 
-def test_meta_epoch(c, print_func, loader, encoder, decoders, pool_layers, N, saliency_detector=None, detection_decoder=None, class_head=None, should_train_class_head=True):
+def test_meta_epoch(c, epoch, loader, encoder, decoders, pool_layers, N, saliency_detector=None, detection_decoder=None, class_head=None, should_train_class_head=True):
     #
     P = c.condition_vec
     decoders = [decoder.eval() for decoder in decoders]
@@ -230,8 +230,8 @@ def test_meta_epoch(c, print_func, loader, encoder, decoders, pool_layers, N, sa
     fps = len(loader.dataset) / (time.time() - start)
     mean_test_loss = test_loss / test_count
     test_stat = {'mean_test_loss': mean_test_loss, 'fps': fps}
-    if c.verbose and print_func:
-        print_func(test_stat)
+    if c.verbose: 
+        print(f"Test Epoch {epoch}: {test_stat}")
     #
     # PxEHW
     print('Heights/Widths', height, width)
@@ -259,13 +259,13 @@ def test_meta_epoch(c, print_func, loader, encoder, decoders, pool_layers, N, sa
     # Train classification head from super_mask
     if class_head and should_train_class_head:
         saliency_added = super_mask * saliency_image_list
-        train_class_head(c, class_head,saliency_added, gt_label_list)
+        train_class_head(c, class_head,saliency_added, gt_label_list, start_lr=0.001*(1 / (epoch + 1) ** 2))
     return image_list, gt_label_list, gt_mask_list, detection_loss, super_mask, saliency_image_list
 
-def eval_batch(c, stat_printer, test_loader, encoder, decoders, pool_layers, N, saliency_detector, detection_decoder, class_head, is_test_run=False,pre_threshold=None):
-    should_train_class_head = not is_test_run
+def eval_batch(c, epoch, test_loader, encoder, decoders, pool_layers, N, saliency_detector, detection_decoder, class_head, is_test_run=False,pre_threshold=None):
+    should_train_class_head = not is_test_run and epoch < c.class_head_stop_epoch
     test_image_list,gt_label_list, gt_mask_list, detection_score, super_mask, saliency_image_list = test_meta_epoch(
-        c, stat_printer, test_loader, encoder, decoders, pool_layers, N, saliency_detector=saliency_detector, detection_decoder=detection_decoder, class_head=class_head, should_train_class_head=should_train_class_head)
+        c, epoch, test_loader, encoder, decoders, pool_layers, N, saliency_detector=saliency_detector, detection_decoder=detection_decoder, class_head=class_head, should_train_class_head=should_train_class_head)
     accuracy, precision, recall, cf_matrix, seg_pro_auc, seg_roc_auc, det_roc_auc, f1, prec_rec_auc = (0,0,0,0,0,0,0, 0,0)
 
     # det_aur_roc
@@ -376,10 +376,8 @@ def train(c):
             train_meta_epoch(c, epoch,train_loader, saliency_detector,  encoder, decoders, optimizer, pool_layers, N, detection_decoder)
         else:
             raise NotImplementedError('{} is not supported action type!'.format(c.action_type))
-        def debug_epoch_printer(stats):
-            print(f'Epoch: {epoch}, Stats: {stats}')
         # Validation BATCH
-        eval_batch(c, debug_epoch_printer, val_loader ,encoder, decoders, pool_layers, N, saliency_detector, detection_decoder, class_head)
+        eval_batch(c, epoch, val_loader ,encoder, decoders, pool_layers, N, saliency_detector, detection_decoder, class_head)
         # STATICTICS
         best_acc = accuracy_obs.update(STAT_DICT[ACCURACY], epoch)
         best_prec = precision_obs.update(STAT_DICT[PRECISION], epoch, False)
@@ -405,6 +403,6 @@ def train(c):
                 print(f"NO IMPROVEMENT AFTER {PATIENCE} epochs. EARLY STOPPING NOW")
                 break
     # Run on unseen test set
-    eval_batch(c, debug_epoch_printer, test_loader ,encoder, decoders, pool_layers, N, saliency_detector, detection_decoder, class_head, is_test_run=True)
+    eval_batch(c, 9999, test_loader ,encoder, decoders, pool_layers, N, saliency_detector, detection_decoder, class_head, is_test_run=True)
     # save_results(det_roc_obs, seg_roc_obs, seg_pro_obs, c.model, c.class_name, run_date)
     save_model_metrics(c, [accuracy_obs, precision_obs, recall_obs, det_roc_obs, seg_roc_obs, f1_score_obs, prec_rec_auc_obs, accuracy_obs],c.model, c.class_name, run_date, confusion_dict=None,test_metrics=STAT_DICT)

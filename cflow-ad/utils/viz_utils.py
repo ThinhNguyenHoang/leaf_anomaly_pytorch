@@ -64,7 +64,7 @@ def export_groundtruth(c, test_img, gts, out_dir=OUT_DIR):
             plt.close()
 
 
-def export_scores(c, test_img, scores, threshold, saliency_list=None ,out_dir=OUT_DIR):
+def export_scores(c, test_img, scores, threshold, saliency_list=None ,out_dir=OUT_DIR, score_labels=None):
     image_dirs = os.path.join(out_dir, c.model, 'scores_images_' + datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S"))
     # images
     if not os.path.isdir(image_dirs):
@@ -86,6 +86,7 @@ def export_scores(c, test_img, scores, threshold, saliency_list=None ,out_dir=OU
             score_mask = (255.0*score_mask).astype(np.uint8)
             score_img = mark_boundaries(img, score_mask, color=(1, 0, 0), mode='thick')
             score_map = (255.0*scores[i]*scores_norm).astype(np.uint8)
+            label = ''
             #
             rows = 3 if saliency_list else 2
             fig_img, ax_img = plt.subplots(rows, 1, figsize=(2*cm, 4*cm))
@@ -105,7 +106,10 @@ def export_scores(c, test_img, scores, threshold, saliency_list=None ,out_dir=OU
                 ax_img[2].imshow(score_img)
             else:
                 ax_img[1].imshow(score_img)
-            image_file = os.path.join(image_dirs, '{:08d}'.format(i))
+            if score_labels is not None:
+                scored_label = score_labels[i]
+                label = 'anomaly' if scored_label else 'normal'
+            image_file = os.path.join(image_dirs, '{}_{:08d}'.format(label,i))
             fig_img.savefig(image_file, dpi=dpi, format='svg', bbox_inches = 'tight', pad_inches = 0.0)
             plt.close()
 
@@ -174,7 +178,7 @@ def save_visualization(c, test_image_list, super_masks, gt_masks, gt_labels, sco
         cloud_bucket_prefix = cloud_utils.get_bucket_prefix()
         out_dir = os.path.join(cloud_bucket_prefix,'viz')
     print('Optimal SEG Threshold: {:.2f}'.format(seg_threshold))
-    export_groundtruth(c, test_image_list, gt_masks, out_dir)
-    export_scores(c, test_image_list, super_masks, seg_threshold, out_dir=out_dir, saliency_list= saliency_list)
-    export_test_images(c, test_image_list, gt_masks, super_masks, seg_threshold)
+    # export_groundtruth(c, test_image_list, gt_masks, out_dir)
+    export_scores(c, test_image_list, super_masks, seg_threshold, out_dir=out_dir, saliency_list= saliency_list, score_labels=score_labels)
+    # export_test_images(c, test_image_list, gt_masks, super_masks, seg_threshold)
     export_hist(c, gt_masks, super_masks, seg_threshold, out_dir)

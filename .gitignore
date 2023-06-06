@@ -9,6 +9,8 @@ __pycache__
 *.xml
 *.pth
 0*
+_0*
+*_0*
 *.txt
 *.swp
 hist*

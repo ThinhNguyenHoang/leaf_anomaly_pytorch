@@ -70,11 +70,12 @@ def save_weights(c, encoder, decoders, model_name, run_date, detection_decoder=N
 def parse_checkpoint_filename(filename):
     #
     date_idx = filename.find("date") # strip from _date...
-    checkpoint_name = date_idx[:date_idx]
+    checkpoint_name = filename[:date_idx]
     used_args = checkpoint_name.split("&")
     args_dict = {}
     for args in used_args:
-        k,v = args.split(":")
+        if args:
+            k,v = args.split(":")
         args_dict[k] = v
     return args_dict
 def load_weights(c,encoder, decoders, detection_decoder, class_head, checkpoint_filename):
@@ -90,7 +91,7 @@ def load_weights(c,encoder, decoders, detection_decoder, class_head, checkpoint_
         class_head.load_state_dict(class_head.state_dict())
     encoder.load_state_dict(state['encoder_state_dict'], strict=False)
     decoders = [decoder.load_state_dict(state, strict=False) for decoder, state in zip(decoders, state['decoder_state_dict'])]
-    print('Loading weights from {}'.format(checkpoint_filename))
+    print('Loaded weights from {}'.format(checkpoint_filename))
 
 
 def adjust_learning_rate(c, optimizer, epoch):
