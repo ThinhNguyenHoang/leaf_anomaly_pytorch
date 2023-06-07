@@ -170,9 +170,6 @@ def test_meta_epoch(c, epoch, loader, encoder, decoders, pool_layers, N, salienc
                 condition_vector_reshaped = condition_vector.reshape(B, P, S).transpose(1, 2).reshape(E, P)  # BHWxP
                 feature_map_reshaped = e.reshape(B, C, S).transpose(1, 2).reshape(E, C)  # BHWxC
                 #
-                m = F.interpolate(mask, size=(H, W), mode='nearest')
-                m_r = m.reshape(B, 1, S).transpose(1, 2).reshape(E, 1)  # BHWx1
-                #
                 decoder = decoders[l]
                 FIB = E//N + int(E%N > 0)  # number of fiber batches
                 for f in range(FIB):
