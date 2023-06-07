@@ -56,13 +56,13 @@ def handle_processing_step(c, img, process_type, process_value):
     res = img
     if process_type == 'denoise':
         if process_value == 'true':
-            res = histogram_equalization(res)
+            res = denoise_color_image(res)
     if process_type == 'hist_eq':
         if process_value == 'true':
             res = histogram_equalization(res)
-    if process_type == 'clahe':
-        if process_value == 'true':
-            res = apply_clahe(res)
+    # if process_type == 'clahe':
+    #     if process_value == 'true':
+    #         res = apply_clahe(res)
     if process_type == 'morph':
         c_b, c_g, c_r = split_channel(res)
         if process_value == 'red':
@@ -77,26 +77,11 @@ def handle_processing_step(c, img, process_type, process_value):
     return res
 
 def handle_image_processing(c, img):
-    # Image processing pipeline based on the config object
-    B,C,H,W = img.shape
-    res_list = np.array([]) 
-    img = score_utils.t2np(img)
     processing_stage_string = c.image_processing
-    if not processing_stage_string:
-        return img
     stages = processing_stage_string.split('|')
-    # Batch processing
     for stage in stages:
         p_type, p_value = stage.split(':')
-        for i in range(B):
-            im = img[i]
-            im = im.reshape(H,W,C)
-            im_res =handle_processing_step(c, im, p_type, p_value)
-            if len(im_res.shape) == 2:
-                im_res = cv.cvtColor(im_res, cv.COLOR_GRAY2RGB)
-            else:
-                im_res = im_res.reshape(C,H,W)
-            res_list = np.append(res_list, im_res)
-    res_list = score_utils.np2t(res_list)
-    res_list = res_list.reshape(B,C,H,W)
-    return res_list
+        im_res = handle_processing_step(c, img, p_type, p_value)
+        if len(im_res.shape) == 2:
+            im_res = cv.cvtColor(im_res, cv.COLOR_GRAY2RGB)
+    return im_res

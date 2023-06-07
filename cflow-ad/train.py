@@ -50,13 +50,10 @@ def update_stat_dict(accuracy, precision, recall, cf_matrix, seg_pro_auc, seg_ro
     STAT_DICT[PREC_REC_AUC] = prec_rec_auc
     STAT_DICT[F1_SCORE] = f1
 
-def train_meta_epoch(c, epoch, loader,saliency_detector, encoder, decoders, optimizer, pool_layers, N, detection_decoder=None):
+def train_meta_epoch(c, epoch, loader,saliency_detector, encoder, decoders, optimizer, pool_layers, N):
     P = c.condition_vec
     L = c.pool_layers
     decoders = [decoder.train() for decoder in decoders]
-    # Decoder specificaly for classification
-    if detection_decoder:
-        detection_decoder = detection_decoder.train()
     adjust_learning_rate(c, optimizer, epoch)
     I = len(loader)
     iterator = iter(loader)
@@ -72,12 +69,8 @@ def train_meta_epoch(c, epoch, loader,saliency_detector, encoder, decoders, opti
             except StopIteration:
                 iterator = iter(loader)
                 image, _, _ = next(iterator)
-            if c.image_processing:
-                image = cv_utils.handle_image_processing(c,image)
-                image = image.type(torch.cuda.FloatTensor).to(c.device)  # single scale
             # encoder prediction
-            else:
-                image = image.to(c.device)  # single scale
+            image = image.to(c.device)  # single scale
             if 'saliency' in c.sub_arch:
                 saliency_map = get_saliency_map(saliency_detector, image) # Bx1xHxW
             with torch.no_grad():
@@ -121,28 +114,16 @@ def train_meta_epoch(c, epoch, loader,saliency_detector, encoder, decoders, opti
                     optimizer.step()
                     train_loss += t2np(loss.sum())
                     train_count += len(loss)
-            #
-            if detection_decoder:
-                bottle_neck_feature_map = e[-1].detach()
-                z_i, log_jac_det_i = detection_decoder(bottle_neck_feature_map, [condition_vector,])
-                decoder_log_prob = get_logp(C, z_i, log_jac_det_i)
-                log_prob = decoder_log_prob / C
-                loss = -log_sigmoid(log_prob)
-                optimizer.zero_grad()
-                loss.mean().backward()
         #
         mean_train_loss = train_loss / train_count
         if c.verbose:
             print('Epoch: {:d}.{:d} \t train loss: {:.4f}, lr={:.6f}'.format(epoch, sub_epoch, mean_train_loss, lr))
-    #
 
 
-def test_meta_epoch(c, epoch, loader, encoder, decoders, pool_layers, N, saliency_detector=None, detection_decoder=None, class_head=None, should_train_class_head=True):
+def test_meta_epoch(c, epoch, loader, encoder, decoders, pool_layers, N, saliency_detector=None, class_head=None, should_train_class_head=True):
     #
     P = c.condition_vec
     decoders = [decoder.eval() for decoder in decoders]
-    if detection_decoder:
-        detection_decoder.eval()
     height = list()
     width = list()
     image_list = list()
@@ -162,15 +143,12 @@ def test_meta_epoch(c, epoch, loader, encoder, decoders, pool_layers, N, salienc
             # ground_truth label list
             gt_label_list.extend(t2np(label))
             gt_mask_list.extend(t2np(mask))
-            if c.image_processing:
-                image = cv_utils.handle_image_processing(c,image)
-                image = image.type(torch.cuda.FloatTensor).to(c.device)  # single scale
             # encoder prediction
-            else:
-                image = image.to(c.device)  # single scale
+            image = image.to(c.device)  # single scale
             _ = encoder(image)  # BxCxHxW
             if 'saliency' in c.sub_arch:
                 saliency_map = get_saliency_map(saliency_detector, image)
+                saliency_image_list += saliency_map.detach().cpu().tolist()
             for l, layer in enumerate(pool_layers):
                 e = activation[layer]  # BxCxHxW
                 #
@@ -205,7 +183,6 @@ def test_meta_epoch(c, epoch, loader, encoder, decoders, pool_layers, N, salienc
                     #
                     condition_patch = condition_vector_reshaped[idx]  # NxP
                     feature_patch = feature_map_reshaped[idx]  # NxC
-                    m_p = m_r[idx] > 0.5  # Nx1
                     #
                     if 'cflow' in c.dec_arch:
                         z, log_jac_det = decoder(feature_patch, [condition_patch,])
@@ -218,19 +195,11 @@ def test_meta_epoch(c, epoch, loader, encoder, decoders, pool_layers, N, salienc
                     test_loss += t2np(loss.sum())
                     test_count += len(loss)
                     test_dist[l] = test_dist[l] + log_prob.detach().cpu().tolist()
-                if detection_decoder:
-                    bottle_neck_feature_map = e[-1].detach()
-                    z_i, log_jac_det_i = detection_decoder(bottle_neck_feature_map, [condition_vector,])
-                    decoder_log_prob = get_logp(C, z_i, log_jac_det_i)
-                    log_prob = decoder_log_prob / C
-                    detection_loss = -log_sigmoid(log_prob)
-            if 'saliency' in c.sub_arch:
-                saliency_image_list += saliency_map.detach().cpu().tolist()
-    #
+    # Measuring performance
     fps = len(loader.dataset) / (time.time() - start)
     mean_test_loss = test_loss / test_count
     test_stat = {'mean_test_loss': mean_test_loss, 'fps': fps}
-    if c.verbose: 
+    if c.verbose:
         print(f"Test Epoch {epoch}: {test_stat}")
     #
     # PxEHW
@@ -262,10 +231,10 @@ def test_meta_epoch(c, epoch, loader, encoder, decoders, pool_layers, N, salienc
         train_class_head(c, class_head,saliency_added, gt_label_list, start_lr=0.001*(1 / (epoch + 1) ** 2))
     return image_list, gt_label_list, gt_mask_list, detection_loss, super_mask, saliency_image_list
 
-def eval_batch(c, epoch, test_loader, encoder, decoders, pool_layers, N, saliency_detector, detection_decoder, class_head, is_test_run=False,pre_threshold=None):
+def eval_batch(c, epoch, test_loader, encoder, decoders, pool_layers, N, saliency_detector, class_head, is_test_run=False,pre_threshold=None):
     should_train_class_head = not is_test_run and epoch < c.class_head_stop_epoch
     test_image_list,gt_label_list, gt_mask_list, detection_score, super_mask, saliency_image_list = test_meta_epoch(
-        c, epoch, test_loader, encoder, decoders, pool_layers, N, saliency_detector=saliency_detector, detection_decoder=detection_decoder, class_head=class_head, should_train_class_head=should_train_class_head)
+        c, epoch, test_loader, encoder, decoders, pool_layers, N, saliency_detector=saliency_detector, class_head=class_head, should_train_class_head=should_train_class_head)
     accuracy, precision, recall, cf_matrix, seg_pro_auc, seg_roc_auc, det_roc_auc, f1, prec_rec_auc = (0,0,0,0,0,0,0, 0,0)
 
     # det_aur_roc
@@ -287,7 +256,6 @@ def eval_batch(c, epoch, test_loader, encoder, decoders, pool_layers, N, salienc
             _, score_label = torch.max(outputs, 1)
     elif detection_score:
         score_label = get_anomaly_score(score_label, detection_score)
-    
     # auc_roc
     det_roc_auc = roc_auc_score(gt_label, score_label)
     # calculate scores
@@ -329,11 +297,7 @@ def train(c):
 
     # Test classification decoder
     saliency_detector = None
-    detection_decoder = None
     class_head = None
-    if 'detection_decoder' in c.sub_arch:
-        print("======Using additional detection decoder========")
-        detection_decoder = load_decoder_arch(c,pool_dims[-1])
     if 'class_head' in c.sub_arch:
         print("======Using classification head ========")
         # class_head = ClassificationHead(input_dims=c.img_size)
@@ -370,14 +334,14 @@ def train(c):
         c.meta_epochs = 1
     for epoch in range(c.meta_epochs):
         if c.action_type == 'norm-test' and c.checkpoint:
-            load_weights(c, encoder, decoders, detection_decoder, class_head, c.checkpoint)
+            load_weights(c, encoder, decoders, class_head, c.checkpoint)
         elif c.action_type == 'norm-train':
             print('Train meta epoch: {}'.format(epoch))
-            train_meta_epoch(c, epoch,train_loader, saliency_detector,  encoder, decoders, optimizer, pool_layers, N, detection_decoder)
+            train_meta_epoch(c, epoch,train_loader, saliency_detector,  encoder, decoders, optimizer, pool_layers, N)
         else:
             raise NotImplementedError('{} is not supported action type!'.format(c.action_type))
         # Validation BATCH
-        eval_batch(c, epoch, val_loader ,encoder, decoders, pool_layers, N, saliency_detector, detection_decoder, class_head)
+        eval_batch(c, epoch, val_loader ,encoder, decoders, pool_layers, N, saliency_detector, class_head)
         # STATICTICS
         best_acc = accuracy_obs.update(STAT_DICT[ACCURACY], epoch)
         best_prec = precision_obs.update(STAT_DICT[PRECISION], epoch, False)
@@ -395,7 +359,7 @@ def train(c):
         if c.action_type != 'norm_test' and (class_head_condition or normal_condition):
             print(f'Saving weight at stats: {STAT_DICT}')
             meta_score = score
-            save_weights(c,encoder, decoders, c.model, run_date, detection_decoder=detection_decoder, class_head=class_head)
+            save_weights(c,encoder, decoders, c.model, run_date, class_head=class_head)
             early_stopping_patience = PATIENCE
         else:
             early_stopping_patience = early_stopping_patience - 1
@@ -403,6 +367,6 @@ def train(c):
                 print(f"NO IMPROVEMENT AFTER {PATIENCE} epochs. EARLY STOPPING NOW")
                 break
     # Run on unseen test set
-    eval_batch(c, 9999, test_loader ,encoder, decoders, pool_layers, N, saliency_detector, detection_decoder, class_head, is_test_run=True)
+    eval_batch(c, 9999, test_loader ,encoder, decoders, pool_layers, N, saliency_detector, class_head, is_test_run=True)
     # save_results(det_roc_obs, seg_roc_obs, seg_pro_obs, c.model, c.class_name, run_date)
     save_model_metrics(c, [accuracy_obs, precision_obs, recall_obs, det_roc_obs, seg_roc_obs, f1_score_obs, prec_rec_auc_obs, accuracy_obs],c.model, c.class_name, run_date, confusion_dict=None,test_metrics=STAT_DICT)

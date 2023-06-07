@@ -1,9 +1,11 @@
 import os
 from PIL import Image
+from skimage import io
 import numpy as np
 import torch
 from torch.utils.data import Dataset
 from torchvision import transforms as T
+import utils.cv_utils as cv_utils
 
 
 PLANT_VILLAGE_CLASS_NAMES =['Pepper__bell___Bacterial_spot', 'Pepper__bell___healthy', 'Potato___Early_blight', 'Potato___Late_blight', 'Potato___healthy', 'Tomato_Bacterial_spot', 'Tomato_Early_blight', 'Tomato_Late_blight', 'Tomato_Leaf_Mold', 'Tomato_Septoria_leaf_spot', 'Tomato_Spider_mites_Two_spotted_spider_mite', 'Tomato__Target_Spot', 'Tomato__Tomato_YellowLeaf__Curl_Virus', 'Tomato__Tomato_mosaic_virus', 'Tomato_healthy']
@@ -46,6 +48,7 @@ class PlantVillageDataset(Dataset):
                 T.Resize(c.img_size, Image.ANTIALIAS),
                 T.CenterCrop(c.crp_size),
                 T.ToTensor()])
+        # image processing with OpenCV
         # mask
         self.transform_mask = T.Compose([
             T.Resize(c.img_size, Image.NEAREST),
@@ -57,7 +60,14 @@ class PlantVillageDataset(Dataset):
     def __getitem__(self, idx):
         x, y, mask = self.x[idx], self.y[idx], self.mask[idx]
         #x = Image.open(x).convert('RGB')
-        x = Image.open(x)
+        # x = Image.open(x)
+        x = io.imread(x)
+        if self.c.image_processing:
+            x = cv_utils.handle_image_processing(self.c, x)
+        # x = 
+        # Above is still numpy array in BGR
+        # Convert to PIL Image to fits with TorchVision apis
+        x = Image.fromarray(x)
         x = self.normalize(self.transform_x(x))
         #
         mask = torch.zeros([1, self.cropsize[0], self.cropsize[1]])
