@@ -4,6 +4,7 @@ import torch
 import torch.nn.functional as F
 from sklearn.metrics import roc_auc_score, accuracy_score, precision_score, recall_score, confusion_matrix, det_curve, auc, f1_score
 from tqdm import tqdm
+from custom_models.utils import parse_checkpoint_filename
 from utils.viz_utils import *
 from model import load_decoder_arch, load_encoder_arch, positionalencoding2d, activation, load_saliency_detector_arch, get_saliency_map, ClassificationHead, Wide, train_class_head
 from utils.score_utils import get_logp, rescale, Score_Observer, t2np, calculate_seg_pro_auc, get_anomaly_score, rescale_and_score, score_sigmoid, find_best_thresh_hold_sig, weight_precision_recall
@@ -222,11 +223,12 @@ def test_meta_epoch(c, epoch, loader, encoder, decoders, pool_layers, N, salienc
     # --> Lower likelihood --> Higher score --> Abnormal points
     # --> Max likelihood (or near max) --> Normal points
     super_mask = score_mask.max() - score_mask # scalar - BxHxW --> Shape (Bx3, H,W)
+    # Remove the leaky abnormaly points
+    saliency_added = super_mask * saliency_image_list
     # Train classification head from super_mask
     if class_head and should_train_class_head:
-        saliency_added = super_mask * saliency_image_list
         train_class_head(c, class_head,saliency_added, gt_label_list, start_lr=0.001*(1 / (epoch + 1) ** 2))
-    return image_list, gt_label_list, gt_mask_list, detection_loss, super_mask, saliency_image_list
+    return image_list, gt_label_list, gt_mask_list, detection_loss, saliency_added, saliency_image_list
 
 def eval_batch(c, epoch, test_loader, encoder, decoders, pool_layers, N, saliency_detector, class_head, is_test_run=False,pre_threshold=None):
     should_train_class_head = not is_test_run and epoch < c.class_head_stop_epoch
@@ -282,8 +284,7 @@ def eval_batch(c, epoch, test_loader, encoder, decoders, pool_layers, N, salienc
         save_visualization(c, test_image_list, super_mask, gt_mask, gt_label, score_label, saliency_list=saliency_image_list)
     update_stat_dict(accuracy, precision, recall, cf_matrix, seg_pro_auc, seg_roc_auc, det_roc_auc, prec_rec_auc, f1)
 
-def train(c):
-    run_date = datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S")
+def prepare_architecture(c):
     L = c.pool_layers # number of pooled layers
     print('Number of pool layers =', L)
     encoder, pool_layers, pool_dims = load_encoder_arch(c, L)
@@ -302,15 +303,22 @@ def train(c):
     if 'saliency' in c.sub_arch:
         print("====== Using saliency detector========")
         saliency_detector = load_saliency_detector_arch(c)
+    return encoder, pool_layers, decoders, saliency_detector, class_head
+
+def train(c):
+    run_date = datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S")
+    # Prepare model architecture
+    encoder, pool_layers, decoders, saliency_detector, class_head = prepare_architecture(c)
     # optimizer
     params = list(decoders[0].parameters())
+    L = c.pool_layers
     for l in range(1, L):
         params += list(decoders[l].parameters())
     optimizer = torch.optim.Adam(params, lr=c.lr)
 
     # data preparation
     train_loader, test_loader, val_loader = prepare_dataset(c)
-    N = 256  # hyperparameter that increases batch size for the decoder model by N
+    N = c.N if c.N else 256  # hyperparameter that increases batch size for the decoder model by N
 
     # stats
     det_roc_obs = Score_Observer(DET_AUC_ROC)
@@ -330,13 +338,8 @@ def train(c):
     if c.action_type == 'norm-test':
         c.meta_epochs = 1
     for epoch in range(c.meta_epochs):
-        if c.action_type == 'norm-test' and c.checkpoint:
-            load_weights(c, encoder, decoders, class_head, c.checkpoint)
-        elif c.action_type == 'norm-train':
-            print('Train meta epoch: {}'.format(epoch))
-            train_meta_epoch(c, epoch,train_loader, saliency_detector,  encoder, decoders, optimizer, pool_layers, N)
-        else:
-            raise NotImplementedError('{} is not supported action type!'.format(c.action_type))
+        print('Train meta epoch: {}'.format(epoch))
+        train_meta_epoch(c, epoch,train_loader, saliency_detector,  encoder, decoders, optimizer, pool_layers, N)
         # Validation BATCH
         eval_batch(c, epoch, val_loader ,encoder, decoders, pool_layers, N, saliency_detector, class_head)
         # STATICTICS
@@ -353,7 +356,7 @@ def train(c):
         score = weight_precision_recall(STAT_DICT[PRECISION], STAT_DICT[RECALL])
         class_head_condition = ('class_head' in c.sub_arch) and (best_f1_score or best_det_auc_roc or best_prec_rec_auc or best_acc)
         normal_condition = ('class_head' not in c.sub_arch) and (score > meta_score) or best_acc
-        if c.action_type != 'norm_test' and (class_head_condition or normal_condition):
+        if class_head_condition or normal_condition:
             print(f'Saving weight at stats: {STAT_DICT}')
             meta_score = score
             save_weights(c,encoder, decoders, c.model, run_date, class_head=class_head)
@@ -367,3 +370,16 @@ def train(c):
     eval_batch(c, 9999, test_loader ,encoder, decoders, pool_layers, N, saliency_detector, class_head, is_test_run=True)
     # save_results(det_roc_obs, seg_roc_obs, seg_pro_obs, c.model, c.class_name, run_date)
     save_model_metrics(c, [accuracy_obs, precision_obs, recall_obs, det_roc_obs, seg_roc_obs, f1_score_obs, prec_rec_auc_obs, accuracy_obs],c.model, c.class_name, run_date, confusion_dict=None,test_metrics=STAT_DICT)
+
+def test(c):
+    if not c.checkpoint:
+        raise ValueError("test run must have a checkpoint filepath provided")
+    N = c.N if c.N else 256
+    # Prepare model architecture
+    encoder, pool_layers, decoders, saliency_detector, class_head = prepare_architecture(c)
+    load_weights(c, encoder, decoders, class_head, c.checkpoint)
+    # Dataloader for  batch evaluation 
+    kwargs = {'num_workers': c.workers, 'pin_memory': True} if c.use_cuda else {}
+    val_dataset = PlantVillageDataset(c, phase='val')
+    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=c.batch_size, shuffle=False, drop_last=False, **kwargs)
+    eval_batch(c, 9999, val_loader ,encoder, decoders, pool_layers, N, saliency_detector, class_head, is_test_run=True)

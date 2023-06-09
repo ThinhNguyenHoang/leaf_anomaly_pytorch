@@ -71,7 +71,12 @@ def parse_checkpoint_filename(filename):
     args_dict = {}
     for args in used_args:
         if args:
-            k,v = args.split(":")
+            if args.split(":")[0] == "cv":
+                k = "cv"
+                cv_idx = args.find("cv")
+                v = args[cv_idx + 3:]
+            else:
+                k,v = args.split(":")
         args_dict[k] = v
     return args_dict
 

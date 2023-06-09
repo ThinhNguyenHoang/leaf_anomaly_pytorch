@@ -59,6 +59,8 @@ def get_args():
                         help='number of sub epochs to train (default: 8)')
     parser.add_argument('--patience', type=int, default=6, metavar='E',
                         help='number of epochs unimproved before stopping')
+    parser.add_argument('--N', type=int, default=256, metavar='N',
+                        help='Number of fibers per batch processing')
     # Evaluation params
     parser.add_argument('--pro', action='store_true', default=False,
                         help='enables estimation of AUPRO metric')

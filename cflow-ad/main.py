@@ -5,7 +5,8 @@ import torchvision
 # import timm
 # from timm.data import resolve_data_config
 from config import get_args
-from train import train
+from custom_models.utils import parse_checkpoint_filename
+from train import train, test
 import utils.cloud_utils as cloud_utils
 import traceback
 
@@ -90,6 +91,7 @@ def main(c):
     # Load images data from the cloud storage bucket
     handle_dataset_path(c)
     # Load submodels' saved weight from the cloud storage
+    c.sub_arch = c.sub_arch if c.sub_arch else parse_checkpoint_filename(c.checkpoint)['sa']
     handle_submodel_weight_paths(c)
     # Save the model weight to the cloud storage
     handle_weight_dir_path(c)
@@ -98,11 +100,14 @@ def main(c):
     c.use_cuda = not c.no_cuda and torch.cuda.is_available()
     init_seeds(seed=int(time.time()))
     if c.use_cuda:
-        print("=================== PREPARING TO TRAIN WITH GPU ==============================")
+        print("=================== RUNNING WITH GPU ==============================")
     c.device = torch.device("cuda" if c.use_cuda else "cpu")
     # selected function:
     if c.action_type in ['norm-train', 'norm-test']:
-        train(c)
+        if c.action_type == 'norm-train':
+            train(c)
+        if c.action_type == 'norm-test':
+            test(c)
     else:
         raise NotImplementedError('{} is not supported action-type!'.format(c.action_type))
     print("TRAINING WITH CONFIG:", str(c))

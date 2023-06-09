@@ -44,8 +44,8 @@ def binarize_map(saliency_map, threshold=0.5):
     return (saliency_map>threshold)*1.0
 def get_saliency_map(detector, input_img):
     pred = u2net_test.eval_with_u2net(detector, input_img)
-    # return binarize_map(pred)
-    return pred
+    return binarize_map(pred)
+    # return pred
 # ================== DECODER ======================
 def subnet_fc(dims_in, dims_out):
     return nn.Sequential(nn.Linear(dims_in, 2*dims_in), nn.ReLU(), nn.Linear(2*dims_in, dims_out))

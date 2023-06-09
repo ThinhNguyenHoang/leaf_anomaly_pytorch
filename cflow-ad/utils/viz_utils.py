@@ -99,8 +99,10 @@ def export_scores(c, test_img, scores, threshold, saliency_list=None ,out_dir=OU
                 ax_i.spines['left'].set_visible(False)
             #
             plt.subplots_adjust(hspace = 0.1, wspace = 0.1)
+            # Plot the original and heatmap overlay
             ax_img[0].imshow(img, cmap='gray', interpolation='none')
             ax_img[0].imshow(score_map, cmap='jet', norm=norm, alpha=0.5, interpolation='none')
+            # Plot Saliency Map Image And The Original
             if saliency_list:
                 ax_img[1].imshow(saliency_mask)
                 ax_img[2].imshow(score_img)
@@ -178,7 +180,4 @@ def save_visualization(c, test_image_list, super_masks, gt_masks, gt_labels, sco
         cloud_bucket_prefix = cloud_utils.get_bucket_prefix()
         out_dir = os.path.join(cloud_bucket_prefix,'viz')
     print('Optimal SEG Threshold: {:.2f}'.format(seg_threshold))
-    # export_groundtruth(c, test_image_list, gt_masks, out_dir)
     export_scores(c, test_image_list, super_masks, seg_threshold, out_dir=out_dir, saliency_list= saliency_list, score_labels=score_labels)
-    # export_test_images(c, test_image_list, gt_masks, super_masks, seg_threshold)
-    export_hist(c, gt_masks, super_masks, seg_threshold, out_dir)
