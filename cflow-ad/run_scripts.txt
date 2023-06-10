@@ -1,1 +1,0 @@
-python3 main.py --gpu 0 -enc wide_resnet50_2 --pro -inp 256 --dataset mvtec --class-name cable

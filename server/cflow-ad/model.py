@@ -11,7 +11,7 @@ import timm
 import os
 from torchvision import transforms
 from custom_models.u2net import u2net_test
-from utils import score_utils
+from utils import score_util
 def positionalencoding2d(D, H, W):
     """
     :param D: dimension of the model
