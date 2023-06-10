@@ -223,14 +223,15 @@ def test_meta_epoch(c, epoch, loader, encoder, decoders, pool_layers, N, salienc
     # --> Lower likelihood --> Higher score --> Abnormal points
     # --> Max likelihood (or near max) --> Normal points
     super_mask = score_mask.max() - score_mask # scalar - BxHxW --> Shape (Bx3, H,W)
-    # Remove the leaky abnormaly points
-    saliency_added = super_mask * saliency_image_list
+    saliency_added = super_mask
     # Train classification head from super_mask
     if class_head and should_train_class_head:
+        # Remove the leaky abnormaly points
+        saliency_added = super_mask * saliency_image_list
         train_class_head(c, class_head,saliency_added, gt_label_list, start_lr=0.001*(1 / (epoch + 1) ** 2))
     return image_list, gt_label_list, gt_mask_list, detection_loss, saliency_added, saliency_image_list
 
-def eval_batch(c, epoch, test_loader, encoder, decoders, pool_layers, N, saliency_detector, class_head, is_test_run=False,pre_threshold=None):
+def eval_batch(c, epoch, test_loader, encoder, decoders, pool_layers, N, saliency_detector, class_head, is_test_run=False, should_track_stats=True, pre_threshold=None, run_id=''):
     should_train_class_head = not is_test_run and epoch < c.class_head_stop_epoch
     test_image_list,gt_label_list, gt_mask_list, detection_score, super_mask, saliency_image_list = test_meta_epoch(
         c, epoch, test_loader, encoder, decoders, pool_layers, N, saliency_detector=saliency_detector, class_head=class_head, should_train_class_head=should_train_class_head)
@@ -256,13 +257,14 @@ def eval_batch(c, epoch, test_loader, encoder, decoders, pool_layers, N, salienc
     elif detection_score:
         score_label = get_anomaly_score(score_label, detection_score)
     # auc_roc
-    det_roc_auc = roc_auc_score(gt_label, score_label)
+    if should_track_stats:
+        det_roc_auc = roc_auc_score(gt_label, score_label)
     # calculate scores
     if class_head:
         f1, prec_rec_auc = f1_score(gt_label, score_label), auc(lr_recall, lr_precision)
 
     # BINARY
-    if c.no_mask and c.action_type != 'norm-test':
+    if c.no_mask and c.action_type != 'norm-test' and should_track_stats:
         # precision | accuracy | recall
         if class_head:
             binary_score_label = score_label
@@ -277,12 +279,12 @@ def eval_batch(c, epoch, test_loader, encoder, decoders, pool_layers, N, salienc
         accuracy = accuracy_score(gt_label, binary_score_label)
         precision = precision_score(gt_label, binary_score_label)
         recall = recall_score(gt_label, binary_score_label)
+        update_stat_dict(accuracy, precision, recall, cf_matrix, seg_pro_auc, seg_roc_auc, det_roc_auc, prec_rec_auc, f1)
 
     # export visualuzations
     should_save_viz = is_test_run
     if c.viz and should_save_viz:
-        save_visualization(c, test_image_list, super_mask, gt_mask, gt_label, score_label, saliency_list=saliency_image_list)
-    update_stat_dict(accuracy, precision, recall, cf_matrix, seg_pro_auc, seg_roc_auc, det_roc_auc, prec_rec_auc, f1)
+        save_visualization(c, test_image_list, super_mask, gt_mask, gt_label, score_label, saliency_list=saliency_image_list, run_id=run_id)
 
 def prepare_architecture(c):
     L = c.pool_layers # number of pooled layers
@@ -371,15 +373,17 @@ def train(c):
     # save_results(det_roc_obs, seg_roc_obs, seg_pro_obs, c.model, c.class_name, run_date)
     save_model_metrics(c, [accuracy_obs, precision_obs, recall_obs, det_roc_obs, seg_roc_obs, f1_score_obs, prec_rec_auc_obs, accuracy_obs],c.model, c.class_name, run_date, confusion_dict=None,test_metrics=STAT_DICT)
 
-def test(c):
+def test(c, loader, run_id='EVAL'):
     if not c.checkpoint:
         raise ValueError("test run must have a checkpoint filepath provided")
     N = c.N if c.N else 256
     # Prepare model architecture
     encoder, pool_layers, decoders, saliency_detector, class_head = prepare_architecture(c)
     load_weights(c, encoder, decoders, class_head, c.checkpoint)
-    # Dataloader for  batch evaluation 
+    eval_batch(c, 9999, loader ,encoder, decoders, pool_layers, N, saliency_detector, class_head, is_test_run=True,run_id=run_id, should_track_stats=False)
+
+def test_one_shot(c, img_filenames):
     kwargs = {'num_workers': c.workers, 'pin_memory': True} if c.use_cuda else {}
-    val_dataset = PlantVillageDataset(c, phase='val')
-    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=c.batch_size, shuffle=False, drop_last=False, **kwargs)
-    eval_batch(c, 9999, val_loader ,encoder, decoders, pool_layers, N, saliency_detector, class_head, is_test_run=True)
+    val_dataset = OneOffDataset(c,img_filenames=img_filenames)
+    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size= 4, shuffle=False, drop_last=False, **kwargs)
+    test(c, loader=val_loader, run_id='HHAA_EVAL')

@@ -64,8 +64,12 @@ def export_groundtruth(c, test_img, gts, out_dir=OUT_DIR):
             plt.close()
 
 
-def export_scores(c, test_img, scores, threshold, saliency_list=None ,out_dir=OUT_DIR, score_labels=None):
+EVAL_PREFIX = '$EVALUATION$'
+def export_scores(c, test_img, scores, threshold, saliency_list=None ,out_dir=OUT_DIR, score_labels=None, run_id=''):
     image_dirs = os.path.join(out_dir, c.model, 'scores_images_' + datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S"))
+    # Handle one-off batch evaluation
+    if run_id != '':
+        image_dirs = os.path.join(out_dir, f'{EVAL_PREFIX}run_id:{run_id}@{c.model}', 'scores_images_' + datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S"))
     # images
     if not os.path.isdir(image_dirs):
         print('Exporting scores...')
@@ -111,7 +115,7 @@ def export_scores(c, test_img, scores, threshold, saliency_list=None ,out_dir=OU
             if score_labels is not None:
                 scored_label = score_labels[i]
                 label = 'anomaly' if scored_label else 'normal'
-            image_file = os.path.join(image_dirs, '{}_{:08d}'.format(label,i))
+            image_file = os.path.join(image_dirs, '{:08d}_{}'.format(i, label))
             fig_img.savefig(image_file, dpi=dpi, format='svg', bbox_inches = 'tight', pad_inches = 0.0)
             plt.close()
 
@@ -162,13 +166,13 @@ def export_test_images(c, test_images, gts, scores, threshold, out_dir = OUT_DIR
             fig_img.savefig(image_file, dpi=dpi, format='svg', bbox_inches = 'tight', pad_inches = 0.0)
             plt.close()
 
-def save_visualization(c, test_image_list, super_masks, gt_masks, gt_labels, score_labels, saliency_list=None):
+def save_visualization(c, test_image_list, super_masks, gt_masks, gt_labels, score_labels, saliency_list=None, run_id=''):
     precision, recall, thresholds = precision_recall_curve(gt_labels, score_labels)
     a = 2 * precision * recall
     b = precision + recall
     f1 = np.divide(a, b, out=np.zeros_like(a), where=b != 0)
     det_threshold = thresholds[np.argmax(f1)]
-    print('Optimal DET Threshold: {:.2f}'.format(det_threshold))
+    # print('Optimal DET Threshold: {:.2f}'.format(det_threshold))
     precision, recall, thresholds = precision_recall_curve(gt_masks.flatten(), super_masks.flatten())
     a = 2 * precision * recall
     b = precision + recall
@@ -179,5 +183,5 @@ def save_visualization(c, test_image_list, super_masks, gt_masks, gt_labels, sco
     if c.gcp:
         cloud_bucket_prefix = cloud_utils.get_bucket_prefix()
         out_dir = os.path.join(cloud_bucket_prefix,'viz')
-    print('Optimal SEG Threshold: {:.2f}'.format(seg_threshold))
-    export_scores(c, test_image_list, super_masks, seg_threshold, out_dir=out_dir, saliency_list= saliency_list, score_labels=score_labels)
+    # print('Optimal SEG Threshold: {:.2f}'.format(seg_threshold))
+    export_scores(c, test_image_list, super_masks, seg_threshold, out_dir=out_dir, saliency_list= saliency_list, score_labels=score_labels, run_id=run_id)

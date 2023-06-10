@@ -1,12 +1,13 @@
-import os, random, time, math
+import os, random, time, math, glob
 import numpy as np
 import torch
 import torchvision
 # import timm
 # from timm.data import resolve_data_config
 from config import get_args
+from custom_datasets.plant_village import PlantVillageDataset
 from custom_models.utils import parse_checkpoint_filename
-from train import train, test
+from train import train, test, test_one_shot
 import utils.cloud_utils as cloud_utils
 import traceback
 
@@ -52,7 +53,7 @@ def handle_submodel_weight_paths(c):
         c.u2net_weight_path = os.path.join(cloud_utils.get_bucket_prefix(), 'u2net', 'weights','u2net.pth')
 def main(c):
     # model
-    if c.action_type in ['norm-train', 'norm-test']:
+    if c.action_type in ['norm-train', 'norm-test', 'norm-eval']:
         c.model = f"ds:{c.dataset}&sa:{c.sub_arch}&enc:{c.enc_arch}&dec:{c.dec_arch}&pl:{c.pool_layers}&cb:{c.coupling_blocks}&cv:{c.image_processing}&inp:{c.input_size}&run:{c.run_name}&date:{c.class_name}"
     else:
         raise NotImplementedError('{} is not supported action-type!'.format(c.action_type))
@@ -103,14 +104,23 @@ def main(c):
         print("=================== RUNNING WITH GPU ==============================")
     c.device = torch.device("cuda" if c.use_cuda else "cpu")
     # selected function:
-    if c.action_type in ['norm-train', 'norm-test']:
+    if c.action_type in ['norm-train', 'norm-test', 'norm-eval']:
         if c.action_type == 'norm-train':
             train(c)
-        if c.action_type == 'norm-test':
-            test(c)
+        elif c.action_type == 'norm-eval':
+            print("===================== Runing Evaluation =====================")
+            files_path = os.path.join(os.curdir, 'samples_data') 
+            files = glob.glob(f'{files_path}/**')
+            test_one_shot(c, img_filenames=files)
+        else:
+            # Dataloader for  batch evaluation 
+            kwargs = {'num_workers': c.workers, 'pin_memory': True} if c.use_cuda else {}
+            val_dataset = PlantVillageDataset(c, phase='val')
+            val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=c.batch_size, shuffle=False, drop_last=False, **kwargs)
+            test(c, loader=val_loader)
     else:
         raise NotImplementedError('{} is not supported action-type!'.format(c.action_type))
-    print("TRAINING WITH CONFIG:", str(c))
+    print("RUN WITH CONFIG:", str(c))
 
 if __name__ == '__main__':
     c = get_args()

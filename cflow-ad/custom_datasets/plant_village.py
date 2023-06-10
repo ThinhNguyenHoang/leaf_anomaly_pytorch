@@ -56,7 +56,6 @@ class PlantVillageDataset(Dataset):
             T.ToTensor()])
 
         self.normalize = T.Compose([T.Normalize(c.norm_mean, c.norm_std)])
-
     def __getitem__(self, idx):
         x, y, mask = self.x[idx], self.y[idx], self.mask[idx]
         #x = Image.open(x).convert('RGB')
@@ -64,17 +63,12 @@ class PlantVillageDataset(Dataset):
         x = io.imread(x)
         if self.c.image_processing:
             x = cv_utils.handle_image_processing(self.c, x)
-        # x = 
         # Above is still numpy array in BGR
         # Convert to PIL Image to fits with TorchVision apis
         x = Image.fromarray(x)
         x = self.normalize(self.transform_x(x))
         #
         mask = torch.zeros([1, self.cropsize[0], self.cropsize[1]])
-        # else:
-        #     mask = Image.open(mask)
-        #     mask = self.transform_mask(mask)
-
         return x, y, mask
 
     def __len__(self):
@@ -156,3 +150,47 @@ class PlantVillageDataset(Dataset):
             raise KeyError("Unknown running phase (Must be train/test)")
 
         return list(x), list(y), list(mask)
+
+class OneOffDataset(Dataset):
+    # imgs should be the filenames of the images on the storage
+    def __init__(self, c, img_filenames):
+        #
+        self.c = c
+        self.class_name = c.class_name
+        self.cropsize = c.crp_size
+
+        # Create Dataset
+        total_num = len(img_filenames)
+        x, y, mask = [], [], []
+        x.extend(img_filenames)
+        y.extend([1] * total_num)
+        mask.extend([None] * total_num)
+        self.x = x
+        self.y = y
+        self.mask = mask
+
+        # TRANSFORM
+        self.transform_x = T.Compose([
+            T.Resize(c.img_size, Image.ANTIALIAS),
+            T.CenterCrop(c.crp_size),
+            T.ToTensor()])
+        self.transform_mask = T.Compose([
+            T.Resize(c.img_size, Image.NEAREST),
+            T.CenterCrop(c.crp_size),
+            T.ToTensor()])
+
+        self.normalize = T.Compose([T.Normalize(c.norm_mean, c.norm_std)])
+
+    def __getitem__(self, idx):
+        x, y, mask = self.x[idx], self.y[idx], self.mask[idx]
+        x = io.imread(x)
+        if self.c.image_processing:
+            x = cv_utils.handle_image_processing(self.c, x)
+        x = Image.fromarray(x)
+        x = self.normalize(self.transform_x(x))
+        #
+        mask = torch.zeros([1, self.cropsize[0], self.cropsize[1]])
+        return x, y, mask
+
+    def __len__(self):
+        return len(self.x)
