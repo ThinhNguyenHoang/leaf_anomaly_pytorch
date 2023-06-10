@@ -5,14 +5,13 @@ from config import Config
 
 from app.extensions import db
 
+
 def create_app(config_class=Config):
     app = Flask(__name__)
-    app = CORS(app)
     app.config.from_object(config_class)
 
     # Initialize Flask extensions here
     db.init_app(app)
-    
     # Register blueprints here
     from app.main import bp as main_bp
     app.register_blueprint(main_bp)
@@ -29,7 +28,7 @@ def create_app(config_class=Config):
         print("/isalive request")
         status_code = Response(status=200)
         return status_code
-    # Predict route
+    # # Predict route
     # @app.route("/predict", methods=["POST"])
     # def predict():
     #     print("Prediction::Processing")
@@ -43,4 +42,5 @@ def create_app(config_class=Config):
     #     return jsonify({
     #         "predictions": preds_classes
     #     })
+    CORS(app)
     return app
