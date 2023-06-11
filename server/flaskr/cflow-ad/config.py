@@ -42,6 +42,7 @@ def get_args():
     parser.add_argument('--anomaly-weight', default=2.0, type=float, metavar='C',
                         help='how much anomaly weight is that compare to normal')
     # Run time settings
+    parser.add_argument("--verbose", action='store_true', default=False, help='print debug messages')
     parser.add_argument('-run', '--run-name', default=0, type=int, metavar='C',
                         help='name of the run (default: 0)')
     parser.add_argument('-inp', '--input-size', default=256, type=int, metavar='C',

@@ -9,7 +9,10 @@ from custom_datasets.plant_village import PlantVillageDataset
 from custom_models.utils import parse_checkpoint_filename
 from train import train, test, test_one_shot
 import utils.cloud_utils as cloud_utils
+import utils.memonic as mnemonic
 import traceback
+from colorama import Fore, Style
+
 
 print(f"Notebook runtime: {'GPU' if torch.cuda.is_available() else 'CPU'}")
 print(f"PyTorch version : {torch.__version__}")
@@ -68,7 +71,6 @@ def main(c):
     c.condition_vec = 128
     c.dropout = 0.0  # dropout in s-t-networks
     # output settings
-    c.verbose = True
     c.hide_tqdm_bar = True
     c.save_results = True
     # unsup-train
@@ -109,15 +111,20 @@ def main(c):
             train(c)
         elif c.action_type == 'norm-eval':
             print("===================== Runing Evaluation =====================")
-            files_path = os.path.join(os.curdir, 'samples_data') 
+            files_path = os.path.join(os.curdir, 'eval_data') 
             files = glob.glob(f'{files_path}/**')
-            test_one_shot(c, img_filenames=files)
+            mnemonic_phrase = mnemonic.generate_mnemonic()
+            test_one_shot(c, img_filenames=files, run_id=mnemonic_phrase)
+            print(Fore.RED + "This EVAL run_id is", mnemonic_phrase)
         else:
             # Dataloader for  batch evaluation 
             kwargs = {'num_workers': c.workers, 'pin_memory': True} if c.use_cuda else {}
             val_dataset = PlantVillageDataset(c, phase='val')
             val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=c.batch_size, shuffle=False, drop_last=False, **kwargs)
+            mnemonic_phrase = mnemonic.generate_mnemonic()
             test(c, loader=val_loader)
+            print(Fore.RED + "This TEST run_id is", mnemonic_phrase)
+        print(Style.RESET_ALL)
     else:
         raise NotImplementedError('{} is not supported action-type!'.format(c.action_type))
     print("RUN WITH CONFIG:", str(c))

@@ -201,7 +201,7 @@ def train_class_head(c, class_head, super_mask_list, label_list, start_lr=0.001)
     train_loader = torch.utils.data.DataLoader(ScorerDataset(super_mask_list, label_list), batch_size=c.batch_size, shuffle=True, drop_last=True)
     class_weights = weights = torch.FloatTensor([1.2, 1.2 * c.anomaly_weight]) 
     criterion = nn.CrossEntropyLoss(weight=class_weights)
-    print('========= ClassHead Training =========')
+    # print('========= ClassHead Training =========')
     optimizer = optim.SGD(class_head.parameters(), lr=start_lr, momentum=0.9, weight_decay=5e-4)
     for epoch in range(c.class_head_epochs):  # loop over the dataset multiple times
         running_loss = 0.0
@@ -220,8 +220,9 @@ def train_class_head(c, class_head, super_mask_list, label_list, start_lr=0.001)
 
             # print statistics
             running_loss += loss.item()
-            if c.verbose and (i % 10 == 0):
-                print(f'[Epoch: {epoch}] loss: {running_loss / 10 :.3f}')
+            if (i % 10 == 0):
+                if c.verbose:
+                    print(f'[Epoch: {epoch}] loss: {running_loss / 10 :.3f}')
                 running_loss = 0.0
 
-    print('========= Done! ClassHead Training =========')
+    # print('========= Done! ClassHead Training =========')
