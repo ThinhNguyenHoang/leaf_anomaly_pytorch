@@ -1,0 +1,14 @@
+[2023-06-11 02:34:04 +0700] [600405] [INFO] Starting gunicorn 20.1.0
+[2023-06-11 02:34:04 +0700] [600405] [INFO] Listening at: http://0.0.0.0:8080 (600405)
+[2023-06-11 02:34:04 +0700] [600405] [INFO] Using worker: gthread
+[2023-06-11 02:34:04 +0700] [600432] [INFO] Booting worker with pid: 600432
+[2023-06-11 02:34:04 +0700] [600405] [INFO] Handling signal: int
+[2023-06-11 02:34:04 +0700] [600432] [INFO] Worker exiting (pid: 600432)
+[2023-06-11 02:34:04 +0700] [600405] [INFO] Shutting down: Master
+[2023-06-11 02:35:11 +0700] [600567] [INFO] Starting gunicorn 20.1.0
+[2023-06-11 02:35:11 +0700] [600567] [INFO] Listening at: http://0.0.0.0:8080 (600567)
+[2023-06-11 02:35:11 +0700] [600567] [INFO] Using worker: gthread
+[2023-06-11 02:35:11 +0700] [600751] [INFO] Booting worker with pid: 600751
+[2023-06-11 02:35:11 +0700] [600567] [INFO] Handling signal: int
+[2023-06-11 02:35:11 +0700] [600751] [INFO] Worker exiting (pid: 600751)
+[2023-06-11 02:35:11 +0700] [600567] [INFO] Shutting down: Master

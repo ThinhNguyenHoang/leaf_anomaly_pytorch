@@ -2,13 +2,15 @@ import datetime
 from app.extensions import db
 from sqlalchemy import Column, Integer, DateTime
 from dataclasses import dataclass
+from typing import List
+
 
 @dataclass
 class Prediction(db.Model):
     id: int
     key_id: str
-    input_files: list[str]
-    results_files: list[str]
+    input_files: List[str]
+    results_files: List[str]
 
     __tablename__ = "prediction"
     id = db.Column(db.Integer, primary_key=True)

@@ -1,0 +1,17 @@
+**/*.png
+**/*.jpg
+**/*.gif
+**/*.JPG
+**/*.jpeg
+**/*.svg
+**/*.pt
+**/*.pth
+**/*.h5
+**/*.xml
+**/*.pth
+**/0*
+# *.txt
+**/*.swp
+hist*
+.venv
+__pycache__
