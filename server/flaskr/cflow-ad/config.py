@@ -41,6 +41,8 @@ def get_args():
                         help='number of epochs to train class head')
     parser.add_argument('--anomaly-weight', default=2.0, type=float, metavar='C',
                         help='how much anomaly weight is that compare to normal')
+    parser.add_argument('--det-thresh', default=0.0, type=float, metavar='C',
+                        help='thresholding to obtain class label')
     # Run time settings
     parser.add_argument("--verbose", action='store_true', default=False, help='print debug messages')
     parser.add_argument('-run', '--run-name', default=0, type=int, metavar='C',

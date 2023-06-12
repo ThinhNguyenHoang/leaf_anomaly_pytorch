@@ -224,16 +224,20 @@ def test_meta_epoch(c, epoch, loader, encoder, decoders, pool_layers, N, salienc
     # --> Max likelihood (or near max) --> Normal points
     super_mask = score_mask.max() - score_mask # scalar - BxHxW --> Shape (Bx3, H,W)
     saliency_added = super_mask
+    
+    abnormaly_score_dict = {'sum_prop_map': score_mask, 'ano_heat_map': super_mask} 
     # Train classification head from super_mask
     if class_head and should_train_class_head:
         # Remove the leaky abnormaly points
         saliency_added = super_mask * saliency_image_list
         train_class_head(c, class_head,saliency_added, gt_label_list, start_lr=0.001*(1 / (epoch + 1) ** 2))
-    return image_list, gt_label_list, gt_mask_list, detection_loss, saliency_added, saliency_image_list
+    # else:
+    #     train_class_head(c, class_head,saliency_added, gt_label_list, start_lr=0.001*(1 / (epoch + 1) ** 2))
+    return image_list, gt_label_list, gt_mask_list, detection_loss, saliency_added, saliency_image_list, abnormaly_score_dict
 
 def eval_batch(c, epoch, test_loader, encoder, decoders, pool_layers, N, saliency_detector, class_head, is_test_run=False, should_track_stats=True, pre_threshold=None, run_id=''):
     should_train_class_head = not is_test_run and epoch < c.class_head_stop_epoch
-    test_image_list,gt_label_list, gt_mask_list, detection_score, super_mask, saliency_image_list = test_meta_epoch(
+    test_image_list,gt_label_list, gt_mask_list, detection_score, super_mask, saliency_image_list, abnormaly_score_dict = test_meta_epoch(
         c, epoch, test_loader, encoder, decoders, pool_layers, N, saliency_detector=saliency_detector, class_head=class_head, should_train_class_head=should_train_class_head)
     accuracy, precision, recall, cf_matrix, seg_pro_auc, seg_roc_auc, det_roc_auc, f1, prec_rec_auc = (0,0,0,0,0,0,0, 0,0)
 
@@ -284,7 +288,7 @@ def eval_batch(c, epoch, test_loader, encoder, decoders, pool_layers, N, salienc
     # export visualuzations
     should_save_viz = is_test_run
     if c.viz and should_save_viz:
-        save_visualization(c, test_image_list, super_mask, gt_mask, gt_label, score_label, saliency_list=saliency_image_list, run_id=run_id)
+        save_visualization(c, test_image_list, super_mask, gt_mask, gt_label, score_label, saliency_list=saliency_image_list, run_id=run_id, score_mask_dict=abnormaly_score_dict)
 
 def prepare_architecture(c):
     L = c.pool_layers # number of pooled layers
@@ -382,8 +386,8 @@ def test(c, loader, run_id='EVAL'):
     load_weights(c, encoder, decoders, class_head, c.checkpoint)
     eval_batch(c, 9999, loader ,encoder, decoders, pool_layers, N, saliency_detector, class_head, is_test_run=True,run_id=run_id, should_track_stats=False)
 
-def test_one_shot(c, img_filenames):
+def test_one_shot(c, img_filenames, run_id="EVAL"):
     kwargs = {'num_workers': c.workers, 'pin_memory': True} if c.use_cuda else {}
     val_dataset = OneOffDataset(c,img_filenames=img_filenames)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size= 4, shuffle=False, drop_last=False, **kwargs)
-    test(c, loader=val_loader, run_id='HHAA_EVAL')
+    test(c, loader=val_loader, run_id=run_id)

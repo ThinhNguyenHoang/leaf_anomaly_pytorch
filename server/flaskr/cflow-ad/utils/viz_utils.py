@@ -1,14 +1,16 @@
 import os
 import datetime
 import numpy as np
+import pandas as pd
 from skimage import morphology
 from skimage.segmentation import mark_boundaries
 import matplotlib.pyplot as plt
 import matplotlib
 # from score_utils import *
-from sklearn.metrics import precision_recall_curve
+from sklearn.metrics import precision_recall_curve, roc_curve
 from utils import cloud_utils
-
+import torch
+import math
 OUT_DIR = './viz/'
 
 norm = matplotlib.colors.Normalize(vmin=0.0, vmax=255.0)
@@ -66,14 +68,10 @@ def export_groundtruth(c, test_img, gts, out_dir=OUT_DIR):
 
 EVAL_PREFIX = '$EVALUATION$'
 def export_scores(c, test_img, scores, threshold, saliency_list=None ,out_dir=OUT_DIR, score_labels=None, run_id=''):
-    image_dirs = os.path.join(out_dir, c.model, 'scores_images_' + datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S"))
-    # Handle one-off batch evaluation
-    if run_id != '':
-        image_dirs = os.path.join(out_dir, f'{EVAL_PREFIX}run_id:{run_id}@{c.model}', 'scores_images_' + datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S"))
     # images
-    if not os.path.isdir(image_dirs):
+    if not os.path.isdir(out_dir):
         print('Exporting scores...')
-        os.makedirs(image_dirs, exist_ok=True)
+        os.makedirs(out_dir, exist_ok=True)
         num = len(test_img)
         kernel = morphology.disk(4)
         scores_norm = 1.0/scores.max()
@@ -112,10 +110,11 @@ def export_scores(c, test_img, scores, threshold, saliency_list=None ,out_dir=OU
                 ax_img[2].imshow(score_img)
             else:
                 ax_img[1].imshow(score_img)
+
             if score_labels is not None:
                 scored_label = score_labels[i]
                 label = 'anomaly' if scored_label else 'normal'
-            image_file = os.path.join(image_dirs, '{:08d}_{}'.format(i, label))
+            image_file = os.path.join(out_dir, '{:08d}_{}'.format(i, label))
             fig_img.savefig(image_file, dpi=dpi, format='svg', bbox_inches = 'tight', pad_inches = 0.0)
             plt.close()
 
@@ -166,12 +165,49 @@ def export_test_images(c, test_images, gts, scores, threshold, out_dir = OUT_DIR
             fig_img.savefig(image_file, dpi=dpi, format='svg', bbox_inches = 'tight', pad_inches = 0.0)
             plt.close()
 
-def save_visualization(c, test_image_list, super_masks, gt_masks, gt_labels, score_labels, saliency_list=None, run_id=''):
-    precision, recall, thresholds = precision_recall_curve(gt_labels, score_labels)
-    a = 2 * precision * recall
-    b = precision + recall
-    f1 = np.divide(a, b, out=np.zeros_like(a), where=b != 0)
-    det_threshold = thresholds[np.argmax(f1)]
+def plot_hist_with_score_label(mean_data, labels, out_dir=''):
+    plt.clf()
+    data = {'mean_score':mean_data, 'label': labels}
+    df = pd.DataFrame(data)
+    normal = df.query("label==False")['mean_score']
+    anomaly = df.query("label==True")['mean_score']
+    # An "interface" to matplotlib.axes.Axes.hist() method
+    n, bins, patches = plt.hist(x=normal, bins='auto', color='green',
+                                alpha=0.7, rwidth=0.85)
+    n, bins, patches = plt.hist(x=anomaly, bins='auto', color='red',
+                                alpha=0.7, rwidth=0.85)
+    plt.grid(axis='y', alpha=0.75)
+    plt.xlabel('score')
+    plt.ylabel('Frequency')
+    plt.title('My Very Own Histogram')
+    maxfreq = n.max()
+    # Set a clean upper y-axis limit.
+    plt.ylim(ymax=np.ceil(maxfreq / 10) * 10 if maxfreq % 10 else maxfreq + 10)
+    if not os.path.isdir(out_dir):
+        os.makedirs(out_dir, exist_ok=True)
+        file_path = os.path.join(out_dir,'hist.png')
+        plt.savefig(file_path)
+
+def plot_tpr_fpr(tpr,fpr, out_dir='', best_thresh=''):
+    # plot the roc curve for the model
+    plt.clf()
+    plt.plot([0,1], [0,1], linestyle='--', label='No Skill')
+    plt.plot(fpr, tpr, marker='.', label='model')
+    # axis labels
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.legend()
+    # show the plot
+    if not os.path.isdir(out_dir):
+        os.makedirs(out_dir, exist_ok=True)
+    file_path = os.path.join(out_dir,f'auc_roc_{best_thresh}.png')
+    plt.savefig(file_path)
+def save_visualization(c, test_image_list, super_masks, gt_masks, gt_labels, score_labels, saliency_list=None, run_id='', score_mask_dict=None):
+    # precision, recall, thresholds = precision_recall_curve(gt_labels, score_labels)
+    # a = 2 * precision * recall
+    # b = precision + recall
+    # f1 = np.divide(a, b, out=np.zeros_like(a), where=b != 0)
+    # det_threshold = thresholds[np.argmax(f1)]
     # print('Optimal DET Threshold: {:.2f}'.format(det_threshold))
     precision, recall, thresholds = precision_recall_curve(gt_masks.flatten(), super_masks.flatten())
     a = 2 * precision * recall
@@ -184,4 +220,37 @@ def save_visualization(c, test_image_list, super_masks, gt_masks, gt_labels, sco
         cloud_bucket_prefix = cloud_utils.get_bucket_prefix()
         out_dir = os.path.join(cloud_bucket_prefix,'viz')
     # print('Optimal SEG Threshold: {:.2f}'.format(seg_threshold))
-    export_scores(c, test_image_list, super_masks, seg_threshold, out_dir=out_dir, saliency_list= saliency_list, score_labels=score_labels, run_id=run_id)
+    image_dirs = os.path.join(out_dir, c.model, 'scores_images_' + datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S"))
+    # Handle one-off batch evaluation
+    if run_id != '':
+        image_dirs = os.path.join(out_dir, f'run_id:{run_id}@{c.model}', 'scores_images_' + datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S"))
+    plot_dirs = os.path.join(out_dir, f'run_id:{run_id}@plots')
+    if score_mask_dict:
+        # Calcualte det_threshold
+        sum_prop_map, abnomaly_heat_map = score_mask_dict['sum_prop_map'], score_mask_dict['ano_heat_map']
+        mean_map = abnomaly_heat_map.mean((1,2))
+        B, H, W = abnomaly_heat_map.shape
+        flat_heat_map = abnomaly_heat_map.reshape(B, H * W) # BxHxW -> Bx(HW)
+        values, indexes = torch.topk(torch.from_numpy(flat_heat_map), 30)
+        max_k_sum = torch.sum(values, 1)
+        abnomaly_score = mean_map + (4* max_k_sum.numpy())
+        if 'TEST' in run_id:
+            # abnomaly_score = sum_prop_map.mean((1,2))
+            fpr, tpr, thresholds = roc_curve(gt_labels, abnomaly_score)
+            # get the best threshold
+            # calculate the g-mean for each threshold
+            gmeans = np.sqrt(tpr * (1-fpr))
+            # locate the index of the largest g-mean
+            ix = np.argmax(gmeans)
+            best_thresh = thresholds[ix]
+            score_labels = np.where(abnomaly_score > best_thresh, True, False)
+            plot_hist_with_score_label(abnomaly_score, gt_labels,plot_dirs)
+            plot_tpr_fpr(tpr, fpr,plot_dirs, best_thresh=best_thresh)
+            if c.verbose:
+                print('Best Threshold=%f, G-Mean=%.3f' % (thresholds[ix], gmeans[ix]))
+                print('Best DET Threshold=%f' % (best_thresh))
+        if 'EVAL' in run_id:
+            # recalculate the score_labels with provided threshold 
+            if c.det_thresh:
+                score_labels = np.where(abnomaly_score > c.det_thresh, True, False)
+    export_scores(c, test_image_list, super_masks, seg_threshold, out_dir=image_dirs, saliency_list= saliency_list, score_labels=score_labels, run_id=run_id)
